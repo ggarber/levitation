@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Levitation Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --primary: #38bdf8;
+            --accent: #818cf8;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status.connected {
+            background: #15803d;
+            color: #bbf7d0;
+        }
+
+        .status.disconnected {
+            background: #b91c1c;
+            color: #fecaca;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        input,
+        textarea {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+
+        button {
+            background: linear-gradient(to bottom right, var(--primary), var(--accent));
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        #log {
+            height: 300px;
+            overflow-y: auto;
+            background: #000;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            border: 1px solid #334155;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            border-left: 3px solid transparent;
+            padding-left: 0.5rem;
+        }
+
+        .log-entry.received {
+            border-left-color: var(--primary);
+        }
+
+        .log-entry.sent {
+            border-left-color: var(--accent);
+        }
+
+        .log-entry.system {
+            border-left-color: #64748b;
+            font-style: italic;
+            color: #94a3b8;
+        }
+
+        .timestamp {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Levitation Dashboard</h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div id="status" class="status disconnected">Disconnected</div>
+                <button id="disconnect-btn"
+                    style="margin: 0; padding: 0.4rem 1rem; background: #ef4444; display: none;">Disconnect</button>
+            </div>
+        </div>
+
+        <div class="card" id="connection-card">
+            <h2>Connection Settings</h2>
+            <div class="input-group">
+                <label for="instance-id">Instance ID</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="instance-id" placeholder="Enter instance ID (device GUID)..."
+                        style="flex: 1;">
+                    <button id="connect-btn" style="margin-top: 0;">Connect</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Send Message</h2>
+            <div class="input-group">
+                <label for="type-select">Message Type</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <select id="type-select"
+                        style="flex: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 0.75rem; border-radius: 0.5rem;">
+                        <option value="">Custom...</option>
+                        <option value="EnumerateWorkspacesRequest">EnumerateWorkspacesRequest</option>
+                        <option value="GetAllCascadeTrajectoriesRequest">GetAllCascadeTrajectoriesRequest</option>
+                        <option value="GetAllWorkflowsRequest">GetAllWorkflowsRequest</option>
+                        <option value="GetWorkspaceInfosRequest">GetWorkspaceInfosRequest</option>
+                        <option value="StartCascadeRequest">StartCascadeRequest</option>
+                        <option value="SendUserCascadeMessageRequest">SendUserCascadeMessageRequest</option>
+                    </select>
+                    <input type="text" id="type" placeholder="Custom type..." style="flex: 1;">
+                </div>
+
+                <label for="body">Body (JSON)</label>
+                <textarea id="body" rows="4" placeholder='{}'></textarea>
+
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                    <input type="checkbox" id="verbose" style="width: auto; margin: 0;">
+                    <label for="verbose" style="color: white; font-size: 0.9rem;">Verbose Output</label>
+                </div>
+
+                <button id="send">Send Message</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Activity Log</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const typeSelect = document.getElementById('type-select');
+        const typeInput = document.getElementById('type');
+        const bodyInput = document.getElementById('body');
+        const sendBtn = document.getElementById('send');
+        const instanceInput = document.getElementById('instance-id');
+        const connectBtn = document.getElementById('connect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const connectionCard = document.getElementById('connection-card');
+
+
+        const BODY_EXAMPLES = {
+            'EnumerateWorkspacesRequest': '{}',
+            'GetAllCascadeTrajectoriesRequest': '{"port": ""}',
+            'GetAllWorkflowsRequest': '{"port": ""}',
+            'GetWorkspaceInfosRequest': '{"port": ""}',
+            'StartCascadeRequest': '{"port": ""}',
+            'SendUserCascadeMessageRequest': '{\n  "text": "suggest a new feature",\n  "cascade": "",\n  "port": ""\n}'
+        };
+
+        typeSelect.onchange = () => {
+            const val = typeSelect.value;
+            if (val) {
+                typeInput.value = val;
+                bodyInput.value = BODY_EXAMPLES[val] || '{}';
+            } else {
+                typeInput.value = '';
+            }
+        };
+
+        let ws = null;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
+        let isManuallyDisconnected = false;
+        const MAX_RECONNECT_DELAY = 30000;
+
+        function appendLog(type, message, direction = 'system') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${direction}`;
+
+            const ts = document.createElement('span');
+            ts.className = 'timestamp';
+            ts.textContent = new Date().toLocaleTimeString();
+
+            const content = document.createElement('span');
+            content.textContent = `[${type}] ${typeof message === 'object' ? JSON.stringify(message) : message}`;
+
+            entry.appendChild(ts);
+            entry.appendChild(content);
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function connect() {
+            const instance = instanceInput.value.trim();
+            if (!instance) {
+                alert('Please enter an Instance ID');
+                return;
+            }
+
+            localStorage.setItem('levitation_instance_id', instance);
+            isManuallyDisconnected = false;
+
+            if (ws) {
+                ws.close();
+            }
+
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname || 'localhost';
+            const wsUrl = `${protocol}//${host}:9999?mode=manager&device=${instance}`;
+
+            appendLog('SYSTEM', `Connecting to ${wsUrl}...`);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+                appendLog('SYSTEM', `WebSocket connected with instance ID: ${instance}`);
+                connectBtn.disabled = true;
+                instanceInput.disabled = true;
+                disconnectBtn.style.display = 'block';
+                reconnectAttempts = 0;
+            };
+
+            ws.onclose = (event) => {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                instanceInput.disabled = false;
+                disconnectBtn.style.display = 'none';
+
+                if (event.wasClean) {
+                    appendLog('SYSTEM', 'WebSocket connection closed cleanly');
+                } else {
+                    appendLog('SYSTEM', 'WebSocket connection lost');
+                }
+
+                if (!isManuallyDisconnected) {
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+                    appendLog('SYSTEM', `Attempting to reconnect in ${delay / 1000} seconds...`);
+
+                    reconnectTimer = setTimeout(() => {
+                        reconnectAttempts++;
+                        connect();
+                    }, delay);
+                }
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    appendLog(data.type || 'unknown', data.body || data, 'received');
+                } catch (e) {
+                    appendLog('RAW', event.data, 'received');
+                }
+            };
+
+            ws.onerror = (err) => {
+                appendLog('ERROR', 'WebSocket error occurred');
+                console.error(err);
+            };
+        }
+
+        connectBtn.onclick = connect;
+
+        disconnectBtn.onclick = () => {
+            isManuallyDisconnected = true;
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            if (ws) {
+                ws.close();
+            }
+        };
+
+        const verboseCheckbox = document.getElementById('verbose');
+
+        sendBtn.onclick = () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket server!');
+                return;
+            }
+
+            const type = typeInput.value.trim();
+            const bodyRaw = bodyInput.value.trim();
+            const verbose = verboseCheckbox.checked;
+
+            let body = { verbose };
+            if (bodyRaw) {
+                try {
+                    const parsed = JSON.parse(bodyRaw);
+                    body = { ...parsed, verbose };
+                } catch (e) {
+                    alert('Invalid JSON in body!');
+                    return;
+                }
+            }
+
+            const id = crypto.randomUUID();
+            const message = { type, body, id };
+            ws.send(JSON.stringify(message));
+            appendLog(`${type} (id: ${id.split('-')[0]}...)`, body, 'sent');
+        };
+
+        // Initialize
+        const savedInstance = localStorage.getItem('levitation_instance_id');
+        if (savedInstance) {
+            instanceInput.value = savedInstance;
+            connect();
+        } else {
+            appendLog('SYSTEM', 'No instance ID found. Please enter one and click Connect.');
+        }
+    </script>
+</body>
+
+</html>
