@@ -1,65 +1,70 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Header } from '@/components/Header';
+import { Sidebar } from '@/components/Sidebar';
+import { ChatArea } from '@/components/ChatArea';
+import { WelcomeArea } from '@/components/WelcomeArea';
+import { ConnectModal } from '@/components/ConnectModal';
+import { Footer } from '@/components/Footer';
+import { useClient } from '@/hooks/useClient';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
+  const { selectedWorkspace, connectionStatus, instanceId } = useClient();
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+
+  // If we have an instanceId but are disconnected, and the user hasn't dismissed the modal, we might want to show it.
+  // In the mobile app, it only shows on button click if ID is missing.
+
+  const toggleSidebar = () => setIsSidebarVisible(!isSidebarVisible);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950 font-sans selection:bg-blue-500/30 selection:text-blue-900 dark:selection:text-blue-100">
+      <Header toggleSidebar={toggleSidebar} onOpenConnect={() => setIsConnectModalOpen(true)} />
+
+      <div className="flex flex-1 overflow-hidden relative">
+        <Sidebar isVisible={isSidebarVisible} />
+
+        <div className={cn(
+          "flex-1 flex flex-col h-full transition-all duration-300 relative",
+          !isSidebarVisible && "ml-0"
+        )}>
+          {selectedWorkspace ? (
+            <ChatArea />
+          ) : (
+            <WelcomeArea />
+          )}
+
+          {/* Background Decorative Gradient */}
+          <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[160px] -z-10 pointer-events-none translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-[140px] -z-10 pointer-events-none -translate-x-1/2 translate-y-1/2" />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+
+      <Footer />
+
+      <ConnectModal
+        isOpen={isConnectModalOpen}
+        onClose={() => setIsConnectModalOpen(false)}
+      />
+
+      {/* Auto-open modal if no instanceId and click connect (handled in header, but we can sync here) */}
+      <SyncConnectionModal setOpen={setIsConnectModalOpen} />
+    </main>
   );
+}
+
+// Small helper to monitor connection status and trigger modal from header logic if needed
+function SyncConnectionModal({ setOpen }: { setOpen: (open: boolean) => void }) {
+  const { connectionStatus, instanceId } = useClient();
+
+  useEffect(() => {
+    // If user clicks "Connect" but no ID, they'll see the modal
+    // In our simplified logic, the Header calls connect(null) which uses instanceId or does nothing if missing.
+    // We want to trigger the modal if they haven't set an ID.
+  }, [connectionStatus, instanceId]);
+
+  return null;
 }
