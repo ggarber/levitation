@@ -451,7 +451,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
             console.log(`Connected with instance ID: ${deviceId}`);
 
             console.log('\nScan this QR code or visit the URL below to open the web management interface:');
-            const baseUrl = 'http://localhost:3002';
+            const baseUrl = 'https://levitation.studio';
             const connectUrl = `${baseUrl}?instance=${deviceId}`;
             qrcode.generate(connectUrl, { small: true });
             console.log(`\x1b[36m${connectUrl}\x1b[0m\n`);

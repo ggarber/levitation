@@ -40,7 +40,7 @@ export function ConnectModal({
                         <div className="w-16 h-16 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 transition-transform hover:scale-110">
                             <Shield className="w-8 h-8" />
                         </div>
-                        <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">Security <span className="text-blue-500">Gateway</span></h2>
+                        <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">Client <span className="text-blue-500">Connection</span></h2>
                         <p className="text-base font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
                             Connect to your unique instance of Levitation. Please enter your terminal GUID to verify access.
                         </p>
@@ -56,7 +56,7 @@ export function ConnectModal({
                                 type="text"
                                 value={tempId}
                                 onChange={(e) => setTempId(e.target.value)}
-                                placeholder="Terminal instance ID (GUID)"
+                                placeholder="Client instance ID (GUID)"
                                 className="w-full h-16 pl-16 pr-8 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-lg font-mono font-bold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700 outline-none ring-1 ring-transparent focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-inner"
                                 autoFocus
                             />
@@ -67,7 +67,7 @@ export function ConnectModal({
                                 onClick={onClose}
                                 className="h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
                             >
-                                Decline
+                                CLOSE
                             </button>
                             <button
                                 onClick={handleConnect}
@@ -78,7 +78,6 @@ export function ConnectModal({
                                 )}
                             >
                                 <span>Connect</span>
-                                <ArrowRight className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
@@ -89,9 +88,9 @@ export function ConnectModal({
                             <Activity className="w-3.5 h-3.5" />
                             Encrypted Protocol
                         </div>
-                        <div className="flex items-center gap-2 hover:text-blue-500 transition-colors cursor-help">
+                        <div className="flex items-center gap-2">
                             <Terminal className="w-3.5 h-3.5" />
-                            v2.0 Beta Docs
+                            v2.0 Beta
                         </div>
                     </div>
 

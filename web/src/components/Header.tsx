@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Power, LogOut, Terminal } from 'lucide-react';
+import { Menu, Power, LogOut, Terminal, Github } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
@@ -76,7 +76,7 @@ export function Header({
                     )}
                 >
                     <Terminal className={cn("w-3.5 h-3.5 transition-colors", showLogs ? "text-white" : "group-hover:text-blue-500")} />
-                    Logs
+                    Console
                 </button>
             </div>
 
@@ -89,6 +89,15 @@ export function Header({
                         Client v{clientVersion}
                     </span>
                 )}
+
+                <a
+                    href="https://github.com/ggarber/levitation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                >
+                    <Github className="w-5 h-5" />
+                </a>
 
                 <button
                     onClick={handleConnectClick}

@@ -27,7 +27,8 @@ import {
     Copy,
     Check,
     LayoutGrid,
-    ChevronDown
+    ChevronDown,
+    AlertCircle
 } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ export function ChatArea() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [copied, setCopied] = useState(false);
+    const [copiedCascades, setCopiedCascades] = useState(false);
     const workspaceMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -110,6 +112,15 @@ export function ChatArea() {
         navigator.clipboard.writeText(JSON.stringify(cascadeTimeline, null, 2));
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCopyCascadesJSON = () => {
+        if (!selectedWorkspace) return;
+        const cascades = cascadesByPort[selectedWorkspace.port];
+        if (!cascades) return;
+        navigator.clipboard.writeText(JSON.stringify(cascades, null, 2));
+        setCopiedCascades(true);
+        setTimeout(() => setCopiedCascades(false), 2000);
     };
 
     useEffect(() => {
@@ -167,14 +178,23 @@ export function ChatArea() {
                 content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.userInput?.userResponse || 'User message'}</span>;
                 break;
             case 'CORTEX_STEP_TYPE_PLANNER_RESPONSE':
-                icon = <ChevronRight className="w-4 h-4 text-slate-400" />;
-                const rawDuration = step.metadata?.thinkingDuration ? parseFloat(step.metadata.thinkingDuration) : 0;
-                if (rawDuration > 0 && rawDuration < 1) {
-                    content = <span className="text-slate-500 dark:text-slate-400">Thought for &lt;1s</span>;
-                } else {
-                    const duration = Math.ceil(rawDuration || 1);
-                    content = <span className="text-slate-500 dark:text-slate-400">Thought for {duration}s</span>;
+                if (step.plannerResponse?.modifiedResponse) {
+                    icon = <Sparkles className="w-4 h-4 text-blue-400" />;
+                    content = (
+                        <div className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                            {step.plannerResponse.modifiedResponse}
+                        </div>
+                    );
+                    break;
                 }
+                return null;
+            case 'CORTEX_STEP_TYPE_RUN_COMMAND':
+                icon = <Terminal className="w-4 h-4 text-slate-400" />;
+                content = <span className="text-slate-700 dark:text-slate-300 font-medium">Ran command: {step.runCommand?.comandLine}</span>;
+                break;
+            case 'CORTEX_STEP_TYPE_COMMAND_STATUS':
+                icon = <Clock className="w-4 h-4 text-slate-400" />;
+                content = <span className="text-slate-700 dark:text-slate-300 font-medium">Checked command status</span>;
                 break;
             case 'CORTEX_STEP_TYPE_LIST_DIRECTORY':
                 icon = <Folder className="w-4 h-4 text-slate-400" />;
@@ -233,12 +253,27 @@ export function ChatArea() {
                 break;
             case 'CORTEX_STEP_TYPE_EPHEMERAL_MESSAGE':
                 return null;
+            case 'CORTEX_STEP_TYPE_ERROR_MESSAGE':
+                icon = <AlertCircle className="w-4 h-4 text-slate-400" />;
+                content = (
+                    <div className="flex flex-col gap-1">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Error</span>
+                        <span className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">
+                            {step.errorMessage?.error?.userErrorMessage || 'An error occurred'}
+                        </span>
+                    </div>
+                );
+                break;
 
             default:
                 content = <span className="text-slate-500 text-xs italic">{step.type.replace('CORTEX_STEP_TYPE_', '').replace(/_/g, ' ').toLowerCase()}</span>;
         }
 
-        if (step.description && step.type !== 'CORTEX_STEP_TYPE_USER_INPUT') {
+        if (step.description &&
+            step.type !== 'CORTEX_STEP_TYPE_USER_INPUT' &&
+            step.type !== 'CORTEX_STEP_TYPE_RUN_COMMAND' &&
+            step.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE' &&
+            step.type !== 'CORTEX_STEP_TYPE_ERROR_MESSAGE') {
             content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.description}</span>;
         }
 
@@ -275,23 +310,48 @@ export function ChatArea() {
         );
     };
 
-    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY');
+    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY' && s.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE');
 
     return (
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 transition-all duration-300 overflow-hidden">
             {/* Main Content Area */}
             <div className="flex-1 overflow-hidden flex flex-col relative">
-                {cascadeTimeline && (
-                    <div className="absolute top-4 right-8 z-50">
-                        <button
-                            onClick={handleCopyJSON}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-sm"
-                        >
-                            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                            {copied ? 'Copied!' : 'Copy Trajectory JSON'}
-                        </button>
+                {/* Header with Title and Actions */}
+                <div className="flex items-center justify-between px-8 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 min-h-[64px]">
+                    <div className="flex-1 min-w-0">
+                        {cascadeTimeline && (
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                                    <Sparkles className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                                    {cascadeTimeline.trajectory?.summary || 'Cascade'}
+                                </h3>
+                            </div>
+                        )}
                     </div>
-                )}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {!cascadeTimeline && (
+                            <button
+                                onClick={handleCopyCascadesJSON}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-sm"
+                            >
+                                {copiedCascades ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copiedCascades ? 'Copied!' : 'Copy Cascades JSON'}
+                            </button>
+                        )}
+                        {cascadeTimeline && (
+                            <button
+                                onClick={handleCopyJSON}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-sm"
+                            >
+                                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copied ? 'Copied!' : 'Copy Trajectory JSON'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* Main Content */}
                 <div
                     ref={scrollRef}

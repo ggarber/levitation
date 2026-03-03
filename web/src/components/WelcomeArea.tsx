@@ -123,8 +123,8 @@ export function WelcomeArea() {
                     "flex flex-col gap-4 max-w-2xl",
                     !showLogs && "mx-auto text-center items-center"
                 )}>
-                    <div className="w-16 h-16 rounded-[1.5rem] bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6 shadow-2xl shadow-blue-500/10 border border-blue-500/10">
-                        <Terminal className="w-8 h-8" />
+                    <div className="w-16 h-16 rounded-[1.5rem] bg-black flex items-center justify-center mb-6 shadow-2xl shadow-blue-500/20 border border-white/10 overflow-hidden">
+                        <img src="/icons/icon-192x192.png" alt="Levitation Logo" className="w-10 h-10 object-contain" />
                     </div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter sm:text-5xl leading-tight">
                         Levitation <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Control Center</span>
@@ -134,7 +134,7 @@ export function WelcomeArea() {
                         UNOFFICIAL MOBILE MANAGER FOR GOOGLE ANTIGRAVITY
                     </p>
                     <p className="text-lg font-medium text-slate-600 dark:text-slate-400 leading-relaxed pr-0 sm:pr-12">
-                        Monitor and interact with your agents from your phone while you are away from the computer, ensuring your work never stops.
+                        Monitor and interact with your Antigravity agents from your phone while you are away from the computer, ensuring your work never stops.
                     </p>
 
 

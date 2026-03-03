@@ -89,11 +89,16 @@ export function Sidebar({
                     ) : (
                         workspaces.map((ws, i) => {
                             const isActive = selectedWorkspace?.port === ws.port;
-                            const cascades = [...(cascadesByPort[ws.port] || [])].sort((a, b) => {
-                                const timeA = new Date(a.lastModifiedTime || 0).getTime();
-                                const timeB = new Date(b.lastModifiedTime || 0).getTime();
-                                return timeB - timeA;
-                            });
+                            const cascades = [...(cascadesByPort[ws.port] || [])]
+                                .filter(cascade =>
+                                    !ws.workspaceUri ||
+                                    cascade.workspaces?.some((w: any) => w.workspaceFolderAbsoluteUri === ws.workspaceUri)
+                                )
+                                .sort((a, b) => {
+                                    const timeA = new Date(a.createdTime || a.lastModifiedTime || 0).getTime();
+                                    const timeB = new Date(b.createdTime || b.lastModifiedTime || 0).getTime();
+                                    return timeB - timeA;
+                                });
 
                             return (
                                 <div key={i} className="flex flex-col items-start w-full">

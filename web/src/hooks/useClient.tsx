@@ -6,10 +6,16 @@ import { LevitationClient, ConnectionStatus } from '@/lib/client';
 interface Workspace {
     workspaceName: string;
     port: number;
+    workspaceUri?: string;
 }
 
 interface Cascade {
     id: string;
+    createdTime?: string;
+    lastModifiedTime?: string;
+    summary?: string;
+    hasChanges?: boolean;
+    workspaces?: { folderName: string; workspaceFolderAbsoluteUri: string }[];
     [key: string]: any;
 }
 
@@ -138,8 +144,12 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     const newCascade = {
                         id: cascadeId,
                         summary: pendingMessage || 'New Cascade',
+                        createdTime: new Date().toISOString(),
                         lastModifiedTime: new Date().toISOString(),
-                        stepCount: 1
+                        stepCount: 1,
+                        workspaces: selectedWorkspaceRef.current?.workspaceUri ? [{
+                            workspaceFolderAbsoluteUri: selectedWorkspaceRef.current.workspaceUri
+                        }] : []
                     };
                     setCascadesByPort(prev => ({
                         ...prev,
