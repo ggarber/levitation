@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import process from 'process';
 import WebSocket from 'ws';
+import { spawn } from 'child_process';
 import {
     EnumerateWorkspaces,
     GetAllCascadeTrajectoriesData,
@@ -31,6 +32,24 @@ const originalEmit = process.emit;
     }
     return originalEmit.apply(process, [name, data, ...args] as any);
 };
+
+const DEFAULT_CONNECT_URL = 'ws://server.levitation.studio:9999';
+const CONFIG_DIR = path.join(os.homedir(), '.levitation');
+const PID_FILE = path.join(CONFIG_DIR, 'client.pid');
+const LOG_FILE = path.join(CONFIG_DIR, 'client.log');
+
+if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+}
+
+function isProcessRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
 
 const program = new Command();
 
@@ -103,9 +122,82 @@ program
             }
             const data = await GetCascadeTrajectoryData(options.cascade, options.port, options.verbose);
             console.log('Trajectory Received:', JSON.stringify(data, null, 2));
-        } else {
+        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'logs'].includes(arg))) {
             program.help();
         }
+    });
+
+program
+    .command('start')
+    .description('Start the levitation-client as a background process')
+    .option('--connect <url>', 'Connect to a WebSocket server for remote commands', DEFAULT_CONNECT_URL)
+    .option('-v, --verbose', 'Log full body of requests and responses')
+    .action(async (options) => {
+        if (fs.existsSync(PID_FILE)) {
+            const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
+            if (isProcessRunning(pid)) {
+                console.log(`\x1b[33mWarning:\x1b[0m levitation-client is already running (PID: ${pid})`);
+                return;
+            }
+        }
+
+        const logFd = fs.openSync(LOG_FILE, 'a');
+        const args = [process.argv[1], '--connect', options.connect];
+        if (options.verbose) args.push('--verbose');
+
+        console.log(`Starting levitation-client in background connecting to ${options.connect}...`);
+        const child = spawn(process.execPath, args, {
+            detached: true,
+            stdio: ['ignore', logFd, logFd]
+        });
+
+        if (child.pid) {
+            fs.writeFileSync(PID_FILE, child.pid.toString());
+            child.unref();
+
+            console.log(`\x1b[32mStarted\x1b[0m with PID: ${child.pid}`);
+            console.log(`Logs available at: ${LOG_FILE}`);
+        } else {
+            console.error('\x1b[31mError:\x1b[0m Failed to get PID of the background process.');
+        }
+    });
+
+program
+    .command('stop')
+    .description('Stop the background levitation-client process')
+    .action(async () => {
+        if (!fs.existsSync(PID_FILE)) {
+            console.log('\x1b[33mWarning:\x1b[0m No background process found (PID file missing).');
+            return;
+        }
+
+        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
+        if (isProcessRunning(pid)) {
+            console.log(`Stopping process ${pid}...`);
+            process.kill(pid, 'SIGTERM');
+            console.log('\x1b[32mStopped.\x1b[0m');
+        } else {
+            console.log('\x1b[33mWarning:\x1b[0m Process not running, but PID file exists.');
+        }
+        fs.unlinkSync(PID_FILE);
+    });
+
+program
+    .command('logs')
+    .description('Show background process logs (tail -f)')
+    .action(async () => {
+        if (!fs.existsSync(LOG_FILE)) {
+            console.error('\x1b[31mError:\x1b[0m Log file not found.');
+            return;
+        }
+
+        console.log(`Tailing logs from ${LOG_FILE}... (Press Ctrl+C to stop)`);
+        const tail = spawn('tail', ['-n', '50', '-f', LOG_FILE], { stdio: 'inherit' });
+
+        process.on('SIGINT', () => {
+            tail.kill();
+            process.exit();
+        });
     });
 
 function printWorkspaces(results: any[]) {

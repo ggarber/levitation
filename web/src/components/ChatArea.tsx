@@ -11,7 +11,7 @@ import {
     CornerDownRight,
     Terminal,
     Folder,
-    File,
+    File as LucideFile,
     FileText,
     Flag,
     Zap,
@@ -23,7 +23,11 @@ import {
     ChevronLeft,
     ChevronRight,
     ArrowRight,
-    FileCode
+    FileCode,
+    Copy,
+    Check,
+    LayoutGrid,
+    ChevronDown
 } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
@@ -46,8 +50,8 @@ export function ChatArea() {
         setSelectedWorkspace,
         sendMessage,
         sendCascadeMessage,
-        isSending,
-        isPolling,
+        isStartingNewCascade,
+        isCascadeInProgress,
         cascadesByPort,
         cascadeTimeline,
         getCascadeTrajectory,
@@ -59,9 +63,32 @@ export function ChatArea() {
     const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [copied, setCopied] = useState(false);
+    const workspaceMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(event.target as Node)) {
+                setIsWorkspaceMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const handleWorkspaceSelect = (ws: any) => {
+        setSelectedWorkspace(ws);
+        clearCascadeTimeline();
+        setIsWorkspaceMenuOpen(false);
+    };
+
+    const currentCascadeId = cascadeTimeline?.trajectory?.cascadeId;
+    const isCurrentInProgress = currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade;
 
     const handleSend = () => {
-        if (!chatText.trim() || isSending || isPolling) return;
+        if (!chatText.trim() || isCurrentInProgress) return;
 
         if (cascadeTimeline?.trajectory?.cascadeId) {
             sendCascadeMessage(chatText, cascadeTimeline.trajectory.cascadeId);
@@ -78,6 +105,13 @@ export function ChatArea() {
         }
     };
 
+    const handleCopyJSON = () => {
+        if (!cascadeTimeline) return;
+        navigator.clipboard.writeText(JSON.stringify(cascadeTimeline, null, 2));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
@@ -89,12 +123,17 @@ export function ChatArea() {
         setExpandedSteps({});
     }, [cascadeTimeline?.trajectory?.cascadeId]);
 
+    const lastCascadeIdRef = useRef<string | null>(null);
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
+        const currentId = cascadeTimeline?.trajectory?.cascadeId;
+        if (currentId && currentId !== lastCascadeIdRef.current) {
+            if (scrollRef.current) {
+                scrollRef.current.scrollTo({
+                    top: scrollRef.current.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+            lastCascadeIdRef.current = currentId;
         }
     }, [cascadeTimeline]);
 
@@ -129,8 +168,13 @@ export function ChatArea() {
                 break;
             case 'CORTEX_STEP_TYPE_PLANNER_RESPONSE':
                 icon = <ChevronRight className="w-4 h-4 text-slate-400" />;
-                const duration = step.metadata?.thinkingDuration ? Math.round(parseFloat(step.metadata.thinkingDuration)) : 1;
-                content = <span className="text-slate-500 dark:text-slate-400">Thought for {duration}s</span>;
+                const rawDuration = step.metadata?.thinkingDuration ? parseFloat(step.metadata.thinkingDuration) : 0;
+                if (rawDuration > 0 && rawDuration < 1) {
+                    content = <span className="text-slate-500 dark:text-slate-400">Thought for &lt;1s</span>;
+                } else {
+                    const duration = Math.ceil(rawDuration || 1);
+                    content = <span className="text-slate-500 dark:text-slate-400">Thought for {duration}s</span>;
+                }
                 break;
             case 'CORTEX_STEP_TYPE_LIST_DIRECTORY':
                 icon = <Folder className="w-4 h-4 text-slate-400" />;
@@ -141,8 +185,17 @@ export function ChatArea() {
                     </div>
                 );
                 break;
+            case 'CORTEX_STEP_TYPE_GREP_SEARCH':
+                icon = <Search className="w-4 h-4 text-slate-400" />;
+                content = (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Searching....</span>
+                        <span className="text-slate-500 truncate">{step.grepSearch?.query}</span>
+                    </div>
+                );
+                break;
             case 'CORTEX_STEP_TYPE_VIEW_FILE':
-                icon = <File className="w-4 h-4 text-slate-400" />;
+                icon = <LucideFile className="w-4 h-4 text-slate-400" />;
                 const viewPath = step.viewFile?.absolutePathUri || '';
                 content = (
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -179,12 +232,16 @@ export function ChatArea() {
                 content = <span className="font-bold text-slate-700 dark:text-slate-200">{step.checkpoint?.userIntent?.split('\n')[0] || 'Checkpoint'}</span>;
                 break;
             case 'CORTEX_STEP_TYPE_EPHEMERAL_MESSAGE':
-                icon = <Zap className="w-4 h-4 text-slate-400" />;
-                content = <span className="text-slate-500">Processed system event</span>;
-                break;
+                return null;
+
             default:
                 content = <span className="text-slate-500 text-xs italic">{step.type.replace('CORTEX_STEP_TYPE_', '').replace(/_/g, ' ').toLowerCase()}</span>;
         }
+
+        if (step.description && step.type !== 'CORTEX_STEP_TYPE_USER_INPUT') {
+            content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.description}</span>;
+        }
+
         const isExpanded = expandedSteps[idx];
 
         return (
@@ -218,72 +275,23 @@ export function ChatArea() {
         );
     };
 
-    const steps = cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || [];
+    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY');
 
     return (
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 transition-all duration-300 overflow-hidden">
-            {/* Header */}
-            <div className="h-16 px-8 flex items-center justify-between sticky top-0 z-20 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-4">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        {!cascadeTimeline ? (
-                            <>
-                                <span className="text-slate-400 font-medium">New conversation in</span>
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
-                                        className="flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded-lg transition-colors text-blue-600 dark:text-blue-400"
-                                    >
-                                        {selectedWorkspace.workspaceName}
-                                        <span className="text-[10px] opacity-60 font-mono italic font-normal">⌵</span>
-                                    </button>
-
-                                    {isWorkspaceMenuOpen && (
-                                        <>
-                                            <div className="fixed inset-0 z-30" onClick={() => setIsWorkspaceMenuOpen(false)} />
-                                            <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-40 py-2 animate-in fade-in slide-in-from-top-2">
-                                                <div className="px-4 py-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1">
-                                                    Switch Workspace
-                                                </div>
-                                                <div className="max-h-60 overflow-y-auto">
-                                                    {workspaces.map((ws, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => {
-                                                                setSelectedWorkspace(ws);
-                                                                setIsWorkspaceMenuOpen(false);
-                                                            }}
-                                                            className={cn(
-                                                                "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between",
-                                                                selectedWorkspace.port === ws.port
-                                                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold"
-                                                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                                                            )}
-                                                        >
-                                                            {ws.workspaceName}
-                                                            <span className="text-[10px] opacity-50 font-mono">{ws.port}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex flex-col">
-                                <span className="text-sm font-black uppercase tracking-widest text-blue-500">Cascade Timeline</span>
-                                <span className="text-xs text-slate-400 font-mono truncate max-w-[300px]">
-                                    {cascadeTimeline.trajectory.cascadeId}
-                                </span>
-                            </div>
-                        )}
-                    </h3>
-                </div>
-            </div>
-
             {/* Main Content Area */}
             <div className="flex-1 overflow-hidden flex flex-col relative">
+                {cascadeTimeline && (
+                    <div className="absolute top-4 right-8 z-50">
+                        <button
+                            onClick={handleCopyJSON}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-sm"
+                        >
+                            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copied ? 'Copied!' : 'Copy Trajectory JSON'}
+                        </button>
+                    </div>
+                )}
                 {/* Main Content */}
                 <div
                     ref={scrollRef}
@@ -292,17 +300,57 @@ export function ChatArea() {
                     {isLoadingTimeline ? (
                         <div className="h-full flex flex-col items-center justify-center space-y-4 animate-pulse">
                             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                            <p className="text-slate-500 font-medium">Loading cascade timeline...</p>
+                            <p className="text-slate-500 font-medium">Loading timeline...</p>
                         </div>
                     ) : !cascadeTimeline ? (
                         <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6">
                             <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shadow-inner">
                                 <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
                             </div>
-                            <div>
-                                <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 mb-2">How can I help you?</h2>
+                            <div className="relative">
+                                <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 mb-2 flex items-center justify-center flex-wrap gap-x-2 gap-y-1">
+                                    <span>Start new conversation in</span>
+                                    <div className="relative" ref={workspaceMenuRef}>
+                                        <button
+                                            onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
+                                            className="inline-flex items-center gap-2 px-3 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition-all text-blue-600 dark:text-blue-400 group border border-transparent hover:border-slate-200 dark:hover:border-slate-800"
+                                        >
+                                            <LayoutGrid className="w-7 h-7 group-hover:scale-110 transition-transform" />
+                                            <span className="truncate max-w-[300px]">{selectedWorkspace.workspaceName}</span>
+                                            <ChevronDown className={cn("w-5 h-5 transition-transform duration-200", isWorkspaceMenuOpen && "rotate-180")} />
+                                        </button>
+
+                                        {isWorkspaceMenuOpen && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden py-2 animate-in fade-in zoom-in-95 duration-200 text-left">
+                                                <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Switch Workspace</span>
+                                                </div>
+                                                <div className="max-h-[300px] overflow-y-auto">
+                                                    {workspaces.map((ws) => (
+                                                        <button
+                                                            key={ws.port}
+                                                            onClick={() => handleWorkspaceSelect(ws)}
+                                                            className={cn(
+                                                                "w-full px-4 py-3 text-sm font-bold flex items-center justify-between transition-colors",
+                                                                selectedWorkspace.port === ws.port
+                                                                    ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                                                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center gap-3 truncate">
+                                                                <LayoutGrid className={cn("w-4 h-4", selectedWorkspace.port === ws.port ? "text-blue-500" : "text-slate-300")} />
+                                                                <span className="truncate">{ws.workspaceName}</span>
+                                                            </div>
+                                                            {selectedWorkspace.port === ws.port && <CheckCircle2 className="w-4 h-4" />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </h2>
                                 <p className="text-slate-500 dark:text-slate-400 text-lg">
-                                    Select a workspace or choose an existing cascade from the sidebar to continue your work.
+                                    Select a workspace or choose an existing session from the sidebar to continue your work.
                                 </p>
                             </div>
                         </div>
@@ -310,14 +358,17 @@ export function ChatArea() {
                         <div className="max-w-3xl space-y-2">
                             {steps.map((step: any, idx: number) => renderStep(step, idx))}
 
-                            {(isSending || isPolling) && (
+                            {isCurrentInProgress && (
                                 <div className="flex items-center gap-5 px-2 py-4">
                                     <div className="w-5 flex justify-center">
                                         <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
                                     </div>
-                                    <div className="text-[14px] font-medium text-slate-400 italic">Working...</div>
+                                    <div className="text-[14px] font-medium text-slate-400 italic">
+                                        {cascadeTimeline?.trajectory?.status || 'Working...'}
+                                    </div>
                                 </div>
                             )}
+
                         </div>
                     )}
                 </div>
@@ -329,7 +380,7 @@ export function ChatArea() {
                             <textarea
                                 ref={textareaRef}
                                 className="w-full bg-transparent p-3 text-base font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none resize-none min-h-[60px] max-h-[400px] leading-relaxed"
-                                placeholder={cascadeTimeline ? "Reply to this cascade..." : "Start a new task..."}
+                                placeholder="Ask anything"
                                 value={chatText}
                                 onChange={(e) => setChatText(e.target.value)}
                                 onKeyDown={handleKeyDown}
@@ -341,15 +392,15 @@ export function ChatArea() {
                                 </div>
                                 <button
                                     onClick={handleSend}
-                                    disabled={!chatText.trim() || isSending || isPolling}
+                                    disabled={!chatText.trim() || isCurrentInProgress}
                                     className={cn(
                                         "w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg shrink-0",
-                                        (!chatText.trim() || isSending || isPolling)
+                                        (!chatText.trim() || isCurrentInProgress)
                                             ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
                                             : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/40"
                                     )}
                                 >
-                                    {isSending || isPolling ? (
+                                    {isCurrentInProgress ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                         <ArrowRight className="w-6 h-6" />

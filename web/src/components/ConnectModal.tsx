@@ -77,7 +77,7 @@ export function ConnectModal({
                                     tempId.trim() ? "bg-gradient-to-br from-blue-600 to-indigo-600 hover:scale-[1.02]" : "bg-slate-400 opacity-50 cursor-not-allowed"
                                 )}
                             >
-                                <span>Authorize Access</span>
+                                <span>Connect</span>
                                 <ArrowRight className="w-4 h-4" />
                             </button>
                         </div>

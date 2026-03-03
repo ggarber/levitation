@@ -231,7 +231,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                 const clientWs = clients.get(device);
                 if (clientWs && clientWs.readyState === WebSocket.OPEN) {
                     console.log(`\x1b[35m[WS]\x1b[0m Forwarding command to client ${device}`);
-                    clientWs.send(data);
+                    clientWs.send(data.toString());
                 } else {
                     console.log(`\x1b[31m[WS]\x1b[0m No client connected for device ${device}`);
                     if (requestId) {
@@ -253,7 +253,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                     if (mapping) {
                         console.log(`\x1b[35m[WS]\x1b[0m Forwarding response to specific manager for request ${requestId}`);
                         if (mapping.managerWs.readyState === WebSocket.OPEN) {
-                            mapping.managerWs.send(data);
+                            mapping.managerWs.send(data.toString());
                         }
                         clearTimeout(mapping.timeoutId);
                         requestMappings.delete(requestId);
@@ -265,7 +265,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                     const managerWs = managers.get(device);
                     if (managerWs && managerWs.readyState === WebSocket.OPEN) {
                         console.log(`\x1b[35m[WS]\x1b[0m Forwarding broadcast response to manager`);
-                        managerWs.send(data);
+                        managerWs.send(data.toString());
                     }
                 }
             }

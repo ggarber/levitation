@@ -129,16 +129,51 @@ export function WelcomeArea() {
                     <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter sm:text-5xl leading-tight">
                         Levitation <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Control Center</span>
                     </h2>
-                    <p className="text-lg font-medium text-slate-600 dark:text-slate-400 leading-relaxed pr-0 sm:pr-12">
-                        This application allows you to manage and interact with your local workspaces and cascade processes. It provides a real-time interface to monitor logs and send commands to your running instances.
+                    <p className="text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        UNOFFICIAL MOBILE MANAGER FOR GOOGLE ANTIGRAVITY
                     </p>
-                    <div className="mt-4 p-6 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 text-left">
-                        <p className="text-sm font-bold text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                            <Info className="w-4 h-4" />
-                            Getting Started
-                        </p>
-                        <p className="mt-2 text-sm text-blue-700 dark:text-blue-400 leading-relaxed">
-                            To begin, ensure you have started the client node locally on the computer where Antigravity is running. Once the node is active, click the <strong>Connect</strong> button in the top right corner to establish a secure link.
+                    <p className="text-lg font-medium text-slate-600 dark:text-slate-400 leading-relaxed pr-0 sm:pr-12">
+                        Monitor and interact with your agents from your phone while you are away from the computer, ensuring your work never stops.
+                    </p>
+
+
+                    <div className="mt-4 p-8 rounded-[2rem] bg-slate-900 border border-slate-800 text-left flex flex-col gap-6 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] -mr-32 -mt-32" />
+
+                        <div>
+                            <p className="text-sm font-bold text-blue-400 flex items-center gap-2 uppercase tracking-widest">
+                                <Terminal className="w-4 h-4" />
+                                Getting Started
+                            </p>
+                            <p className="mt-3 text-slate-400 leading-relaxed">
+                                To link your local machine with this interface, you need to install and run the <strong>levitation-client</strong>. This acts as a bridge between your local Antigravity environment and this dashboard.
+                            </p>
+                        </div>
+
+                        <div className="relative group/terminal">
+                            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-xl blur opacity-0 group-hover/terminal:opacity-100 transition duration-500" />
+                            <div className="relative bg-black/50 rounded-xl border border-white/5 p-6 font-mono text-sm">
+                                <div className="flex gap-1.5 mb-4">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/20 border border-rose-500/40" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20 border border-amber-500/40" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40" />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-3">
+                                        <span className="text-emerald-500 shrink-0 select-none">$</span>
+                                        <span className="text-blue-400">npm install -g levitation-client</span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <span className="text-emerald-500 shrink-0 select-none">$</span>
+                                        <span className="text-blue-400">levitation-client start</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-sm text-slate-500 leading-relaxed italic border-t border-white/5 pt-6">
+                            The client will output a connection code. Click <strong>Connect</strong> in the top right and enter it to finish the setup.
                         </p>
                     </div>
                 </div>
@@ -181,11 +216,6 @@ export function WelcomeArea() {
                     </div>
                 )}
 
-                {/* Footer Note */}
-                <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 text-xs font-bold transition-all w-fit">
-                    <AlertTriangle className="w-4 h-4 text-amber-500/50" />
-                    <span>Connected Instance: {instanceId ? instanceId : 'None'}</span>
-                </div>
             </div>
         </div>
     );

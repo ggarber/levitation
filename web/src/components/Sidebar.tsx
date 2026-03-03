@@ -18,7 +18,9 @@ export function Sidebar({
         connectionStatus,
         cascadesByPort,
         getCascadeTrajectory,
-        clearCascadeTimeline
+        clearCascadeTimeline,
+        isCascadeInProgress,
+        isLoadingWorkspaces
     } = useClient();
     const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<number, boolean>>({});
     const [showingAllCascades, setShowingAllCascades] = React.useState<Record<number, boolean>>({});
@@ -68,7 +70,14 @@ export function Sidebar({
                 </div>
 
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-[calc(100vh-12rem)] pr-0">
-                    {workspaces.length === 0 ? (
+                    {isLoadingWorkspaces || (workspaces.length === 0 && connectionStatus === 'connecting') ? (
+                        <div className="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl transition-all">
+                            <RefreshCcw className="w-6 h-6 mx-auto mb-3 text-blue-500 animate-spin" />
+                            <p className="text-[11px] font-medium leading-relaxed italic text-slate-400 dark:text-slate-600">
+                                {isLoadingWorkspaces ? 'Fetching workspaces...' : 'Establishing connection...'}
+                            </p>
+                        </div>
+                    ) : workspaces.length === 0 ? (
                         <div className="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl transition-all">
                             <Terminal className="w-6 h-6 mx-auto mb-3 text-slate-300 dark:text-slate-700" />
                             <p className="text-[11px] font-medium leading-relaxed italic text-slate-400 dark:text-slate-600">
@@ -121,9 +130,14 @@ export function Sidebar({
                                                             setSelectedWorkspace(ws);
                                                             getCascadeTrajectory(cascade.id, ws.port);
                                                         }}
-                                                        className="flex items-center py-1 text-slate-700 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors truncate cursor-pointer"
+                                                        className="flex items-center py-1 group/item"
                                                     >
-                                                        <span className="truncate">{cascade.summary || 'Untitled Cascade'}</span>
+                                                        <span className="text-slate-700 dark:text-slate-300 group-hover/item:text-blue-500 dark:group-hover/item:text-blue-400 transition-colors truncate cursor-pointer flex-1">
+                                                            {cascade.summary || 'Untitled Session'}
+                                                        </span>
+                                                        {cascade.hasChanges && (
+                                                            <div className="ml-2 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -149,17 +163,6 @@ export function Sidebar({
                 </div>
             </div>
 
-            <div className="mt-auto p-4">
-                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group cursor-pointer">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-all">
-                        GG
-                    </div>
-                    <div className="flex flex-col overflow-hidden">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">Garber</span>
-                        <span className="text-[10px] font-medium text-slate-500 truncate">Workspace Admin</span>
-                    </div>
-                </div>
-            </div>
         </aside>
     );
 }

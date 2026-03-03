@@ -77,13 +77,11 @@ export class LevitationClient {
                 }, 30000);
             };
 
-            ws.binaryType = 'blob';
-            ws.onmessage = async (e) => {
-                let data = e.data;
-                if (data instanceof Blob) {
-                    data = await data.text();
-                } else if (typeof data !== 'string') {
-                    data = new TextDecoder().decode(data);
+            ws.onmessage = (e) => {
+                const data = e.data;
+                if (typeof data !== 'string') {
+                    this.onLog(`Received unexpected non-string data: ${typeof data}`);
+                    return;
                 }
 
                 try {

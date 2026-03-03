@@ -1,17 +1,22 @@
 {
-  "name": "levitation",
+  "name": "levitation-client",
   "version": "1.0.0",
   "description": "CLI to find language server processes",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "levitation": "./bin/levitation.js"
+    "levitation-client": "./bin/levitation.js"
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
+  "files": [
+    "dist",
+    "bin"
+  ],
   "keywords": [],
   "author": "",
   "license": "ISC",

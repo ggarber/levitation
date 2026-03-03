@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Levitation Web",
-  description: "Advanced workspace and cascade management interface.",
+  description: "Advanced workspace and session management interface.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

@@ -1,9 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Menu, Power, LogOut, Terminal, Sun, Moon } from 'lucide-react';
+import { Menu, Power, LogOut, Terminal } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
-import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 
 export function Header({
@@ -13,8 +12,7 @@ export function Header({
     toggleSidebar: () => void;
     onOpenConnect: () => void;
 }) {
-    const { connectionStatus, connect, disconnect, setSelectedWorkspace, instanceId, clientVersion, setShowLogs } = useClient();
-    const { theme, setTheme } = useTheme();
+    const { connectionStatus, connect, disconnect, setSelectedWorkspace, instanceId, clientVersion, showLogs, setShowLogs } = useClient();
 
     const handleConnectClick = () => {
         if (connectionStatus === 'connected') {
@@ -67,26 +65,27 @@ export function Header({
                 <button
                     onClick={() => {
                         setSelectedWorkspace(null);
-                        setShowLogs(true);
+                        setShowLogs(!showLogs);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 ml-4 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-all uppercase tracking-wide group"
+                    className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 ml-4 text-xs font-semibold rounded-lg transition-all uppercase tracking-wide group",
+                        connectionStatus !== 'connected' && "hidden",
+                        showLogs
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                            : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
+                    )}
                 >
-                    <Terminal className="w-3.5 h-3.5 group-hover:text-blue-500 transition-colors" />
+                    <Terminal className={cn("w-3.5 h-3.5 transition-colors", showLogs ? "text-white" : "group-hover:text-blue-500")} />
                     Logs
                 </button>
             </div>
 
             <div className="flex items-center gap-3">
-                <button
-                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
-                >
-                    <Sun className="w-5 h-5 hidden dark:block" />
-                    <Moon className="w-5 h-5 block dark:hidden" />
-                </button>
-
                 {clientVersion && (
-                    <span className="hidden sm:block text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700">
+                    <span
+                        title={instanceId ? `Connected to: ${instanceId}` : undefined}
+                        className="hidden sm:block text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 cursor-help"
+                    >
                         Client v{clientVersion}
                     </span>
                 )}
@@ -94,8 +93,9 @@ export function Header({
                 <button
                     onClick={handleConnectClick}
                     disabled={connectionStatus === 'connecting'}
+                    title={instanceId ? `Connected to: ${instanceId}` : undefined}
                     className={cn(
-                        "h-10 px-6 rounded-full flex items-center gap-2 text-white font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95 transition-all",
+                        "h-10 px-6 rounded-full flex items-center gap-2 text-white font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95 transition-all outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900",
                         config.color,
                         connectionStatus === 'connecting' && "opacity-80"
                     )}
