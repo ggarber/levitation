@@ -168,15 +168,15 @@ server.listen(WS_PORT, () => {
 server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
     const mode = url.searchParams.get('mode');
-    const device = url.searchParams.get('device');
+    const instanceId = url.searchParams.get('instance');
 
-    if (!mode || !device) {
-        console.log(`\x1b[31m[WS]\x1b[0m Upgrade rejected: missing mode or device. URL: ${request.url}`);
+    if (!mode || !instanceId) {
+        console.log(`\x1b[31m[WS]\x1b[0m Upgrade rejected: missing mode or instance. URL: ${request.url}`);
         socket.write('HTTP/1.1 400 Bad Request\r\n' +
             'Content-Type: text/plain\r\n' +
             'Connection: close\r\n' +
             '\r\n' +
-            'Missing mode or device parameter');
+            'Missing mode or instance parameter');
         socket.destroy();
         return;
     }
@@ -189,14 +189,14 @@ server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) =>
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
     const mode = (url.searchParams.get('mode') || 'unknown') as 'client' | 'manager';
-    const device = url.searchParams.get('device') || 'unknown';
+    const instanceId = url.searchParams.get('instance') || 'unknown';
     const version = url.searchParams.get('version') || undefined;
     const ip = req.socket.remoteAddress || 'unknown';
 
-    console.log(`\x1b[32m[WS]\x1b[0m Connection established: mode=${mode}, device=${device}, ip=${ip}`);
+    console.log(`\x1b[32m[WS]\x1b[0m Connection established: mode=${mode}, instance=${instanceId}, ip=${ip}`);
 
     const stats: ConnectionStats = {
-        instanceId: device,
+        instanceId,
         mode,
         ip,
         connectedAt: new Date(),
@@ -218,9 +218,9 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                 const type = message.type || 'unknown';
                 const requestId = message.id;
                 const length = data.length || data.toString().length;
-                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${length})`);
+                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${instanceId}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${length})`);
             } catch {
-                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1m(binary or non-json)\x1b[0m`);
+                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${instanceId}): \x1b[1m(binary or non-json)\x1b[0m`);
             }
         }
 
@@ -232,24 +232,24 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     } as any;
 
     if (mode === 'client') {
-        const existingClient = clients.get(device);
+        const existingClient = clients.get(instanceId);
         if (existingClient) {
-            console.log(`\x1b[33m[WS]\x1b[0m Disconnecting previous client with instance id ${device}`);
+            console.log(`\x1b[33m[WS]\x1b[0m Disconnecting previous client with instance id ${instanceId}`);
             existingClient.send(JSON.stringify({ type: 'Error', status: 'Conflict', body: 'Another instance connected' }));
             existingClient.close(1001, 'Another instance connected');
         }
-        clients.set(device, ws);
+        clients.set(instanceId, ws);
     } else if (mode === 'manager') {
-        const existingManager = managers.get(device);
+        const existingManager = managers.get(instanceId);
         if (existingManager) {
-            console.log(`\x1b[33m[WS]\x1b[0m Disconnecting previous manager with instance id ${device}`);
+            console.log(`\x1b[33m[WS]\x1b[0m Disconnecting previous manager with instance id ${instanceId}`);
             existingManager.send(JSON.stringify({ type: 'Error', status: 'Conflict', body: 'Another instance connected' }));
             existingManager.close(1001, 'Another instance connected');
         }
-        managers.set(device, ws);
+        managers.set(instanceId, ws);
 
         // Notify this new manager if there's already a client connected
-        const clientWs = clients.get(device);
+        const clientWs = clients.get(instanceId);
         if (clientWs) {
             const clientStats = connectionStats.get(clientWs);
             if (clientStats && clientStats.version) {
@@ -260,7 +260,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 
     if (mode === 'client' && version) {
         // Notify any active managers that a client has connected with this version
-        const managerWs = managers.get(device);
+        const managerWs = managers.get(instanceId);
         if (managerWs && managerWs.readyState === WebSocket.OPEN) {
             managerWs.send(JSON.stringify({ type: 'ClientInfo', body: { version } }));
         }
@@ -275,7 +275,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
             message = JSON.parse(messageText);
         } catch (err) {
             if (isVerbose) {
-                console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${device}): \x1b[1m(binary or non-json)\x1b[0m`);
+                console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${instanceId}): \x1b[1m(binary or non-json)\x1b[0m`);
             }
             return;
         }
@@ -284,7 +284,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         const requestId = message.id;
 
         if (isVerbose) {
-            console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${data.length}) (isBinary=${isBinary})`);
+            console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${instanceId}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${data.length}) (isBinary=${isBinary})`);
         }
 
         if (type === 'Ping') {
@@ -313,12 +313,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
             }
 
             // Forward to client
-            const clientWs = clients.get(device);
+            const clientWs = clients.get(instanceId);
             if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-                if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding command to client ${device} (binary=${isBinary})`);
+                if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding command to client ${instanceId} (binary=${isBinary})`);
                 clientWs.send(data, { binary: isBinary });
             } else {
-                if (isVerbose) console.log(`\x1b[31m[WS]\x1b[0m No client connected for device ${device}`);
+                if (isVerbose) console.log(`\x1b[31m[WS]\x1b[0m No client connected for instanceId ${instanceId}`);
                 if (requestId) {
                     const mapping = requestMappings.get(requestId);
                     if (mapping) {
@@ -329,7 +329,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                 ws.send(JSON.stringify({
                     type: 'Error',
                     id: requestId,
-                    body: 'No client connected for this device ID'
+                    body: 'No client connected for this instance ID'
                 }));
             }
         } else if (mode === 'client') {
@@ -346,8 +346,8 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
                     if (isVerbose) console.log(`\x1b[33m[WS]\x1b[0m Received response for unknown or expired request ${requestId}`);
                 }
             } else {
-                // Forward back to the manager for this device
-                const managerWs = managers.get(device);
+                // Forward back to the manager for this instanceId
+                const managerWs = managers.get(instanceId);
                 if (managerWs && managerWs.readyState === WebSocket.OPEN) {
                     if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding broadcast response to manager (binary=${isBinary})`);
                     managerWs.send(data, { binary: isBinary });
@@ -357,15 +357,15 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     });
 
     ws.on('close', () => {
-        console.log(`\x1b[33m[WS]\x1b[0m Connection closed: mode=${mode}, device=${device}`);
+        console.log(`\x1b[33m[WS]\x1b[0m Connection closed: mode=${mode}, instanceId=${instanceId}`);
         connectionStats.delete(ws);
         if (mode === 'client') {
-            if (clients.get(device) === ws) {
-                clients.delete(device);
+            if (clients.get(instanceId) === ws) {
+                clients.delete(instanceId);
             }
         } else if (mode === 'manager') {
-            if (managers.get(device) === ws) {
-                managers.delete(device);
+            if (managers.get(instanceId) === ws) {
+                managers.delete(instanceId);
             }
             // Cleanup pending requests for this manager
             for (const [requestId, mapping] of requestMappings.entries()) {

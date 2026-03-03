@@ -469,7 +469,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
     const deviceId = getOrGenerateDeviceID();
     const wsUrl = new URL(url);
     wsUrl.searchParams.set('mode', 'client');
-    wsUrl.searchParams.set('device', deviceId);
+    wsUrl.searchParams.set('instance', deviceId);
     wsUrl.searchParams.set('version', '0.0.1');
 
     let reconnectAttempts = 0;

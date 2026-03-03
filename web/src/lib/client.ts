@@ -56,7 +56,7 @@ export class LevitationClient {
         try {
             const url = new URL(this.wsUrl);
             url.searchParams.set('mode', 'manager');
-            url.searchParams.set('device', instanceId);
+            url.searchParams.set('instance', instanceId);
 
             this.onLog(`Connecting to ${url.toString()}...`);
 
