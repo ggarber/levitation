@@ -15,20 +15,41 @@ export default function Home() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
 
-  // If we have an instanceId but are disconnected, and the user hasn't dismissed the modal, we might want to show it.
-  // In the mobile app, it only shows on button click if ID is missing.
+  // Initialize sidebar visibility based on screen width
+  useEffect(() => {
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile) {
+      setIsSidebarVisible(false);
+    }
+  }, []);
 
   const toggleSidebar = () => setIsSidebarVisible(!isSidebarVisible);
+
+  const handleSidebarItemClick = () => {
+    if (window.innerWidth < 1024) {
+      setIsSidebarVisible(false);
+    }
+  };
 
   return (
     <main className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950 font-sans selection:bg-blue-500/30 selection:text-blue-900 dark:selection:text-blue-100">
       <Header toggleSidebar={toggleSidebar} onOpenConnect={() => setIsConnectModalOpen(true)} />
 
       <div className="flex flex-1 overflow-hidden relative">
-        <Sidebar isVisible={isSidebarVisible} />
+        <div className={cn(
+          "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300",
+          isSidebarVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )} onClick={() => setIsSidebarVisible(false)} />
 
         <div className={cn(
-          "flex-1 flex flex-col h-full transition-all duration-300 relative",
+          "fixed inset-y-0 left-0 z-50 lg:relative lg:z-0 transform transition-transform duration-300 lg:transform-none",
+          isSidebarVisible ? "translate-x-0" : "-translate-x-full lg:hidden"
+        )}>
+          <Sidebar isVisible={true} onItemClick={handleSidebarItemClick} />
+        </div>
+
+        <div className={cn(
+          "flex-1 flex flex-col h-full transition-all duration-300 relative overflow-hidden",
           !isSidebarVisible && "ml-0"
         )}>
           {selectedWorkspace ? (

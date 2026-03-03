@@ -15,14 +15,14 @@
 -   **Workspace Tracking**: Deep integration with Antigravity workspace structures and cascades.
 -   **Modern Web UI**: A sleek, responsive dashboard built with Next.js, Tailwind CSS, and Lucide icons.
 -   **Cross-platform**: Support for macOS, Linux, and Windows clients.
--   **Mobile Integration**: (Experimental) Monitor your agents on the go with our React Native mobile app.
+-   **Mobile Access**: Access your dashboard on the go via our Mobile PWA (Progressive Web App). (Note: The standalone React Native app is currently under development and not yet functional).
 
 ## 🏗️ Project Structure
 
 -   `web/`: Next.js web application (Dashboard).
 -   `client/`: TypeScript CLI tool that runs on agent machines.
 -   `server/`: Node.js WebSocket relay server.
--   `mobile/`: React Native mobile application.
+-   `mobile/`: (WIP) React Native mobile application.
 
 ## 🚀 Getting Started
 
@@ -65,6 +65,19 @@ To work on the dashboard UI:
 cd web
 pnpm dev
 ```
+
+## � Mobile PWA
+
+While the dedicated mobile app (`mobile/`) is under construction, Levitation is fully optimized as a **Progressive Web App (PWA)**.
+
+To "install" Levitation on your phone:
+1. Open the dashboard URL in your mobile browser (Safari on iOS, Chrome on Android).
+2. Use the **"Add to Home Screen"** option in your browser menu.
+3. Levitation will now appear as a standalone app on your home screen with its own icon and a full-screen, app-like experience.
+
+## 🔒 SSL Configuration
+
+Secure connections (HTTPS/WSS) are supported and recommended for production deployments. Detailed instructions on how to configure SSL and generate certificates with Let's Encrypt can be found in the [Server README](./server/README.md).
 
 ## 🛠️ Usage
 

@@ -61,6 +61,7 @@ export class LevitationClient {
             this.onLog(`Connecting to ${url.toString()}...`);
 
             const ws = new WebSocket(url.toString());
+            ws.binaryType = 'arraybuffer';
             this.ws = ws;
 
             ws.onopen = () => {
@@ -77,15 +78,21 @@ export class LevitationClient {
                 }, 30000);
             };
 
-            ws.onmessage = (e) => {
+            ws.onmessage = async (e) => {
                 const data = e.data;
-                if (typeof data !== 'string') {
-                    this.onLog(`Received unexpected non-string data: ${typeof data}`);
+                let messageText: string;
+
+                if (data instanceof ArrayBuffer) {
+                    messageText = new TextDecoder().decode(data);
+                } else if (typeof data === 'string') {
+                    messageText = data;
+                } else {
+                    this.onLog(`Received unexpected data type: ${typeof data}`);
                     return;
                 }
 
                 try {
-                    const message = JSON.parse(data);
+                    const message = JSON.parse(messageText);
                     if (message.type === 'Error' && message.status === 'Conflict') {
                         this.onLog(`Conflict: ${message.body || 'Another instance connected'}. Stopping reconnection.`);
                         this.shouldRetry = false;
@@ -93,13 +100,13 @@ export class LevitationClient {
                         return;
                     }
                     if (message.type === 'Pong') {
-                        // Heartbeat response, no need to log or process further for now
+                        // Heartbeat response
                         return;
                     }
-                    this.onLog(`Received: ${data}`);
+                    this.onLog(`Received: ${messageText}`);
                     this.onMessage(message);
                 } catch (err) {
-                    this.onLog(`Received: ${data}`);
+                    this.onLog(`Received: ${messageText}`);
                     this.onLog('Failed to parse received message as JSON');
                 }
             };
@@ -177,9 +184,12 @@ export class LevitationClient {
                     const v = c === 'x' ? r : (r & 0x3 | 0x8);
                     return v.toString(16);
                 });
-            const message = JSON.stringify({ type, body, id });
-            this.onLog(`Sending: ${message}`);
-            this.ws.send(message);
+
+            const message = { type, body, id };
+            const json = JSON.stringify(message);
+            this.onLog(`Sending: ${json}`);
+            // Use TextEncoder to send as binary (ArrayBuffer) to trigger binary frame
+            this.ws.send(new TextEncoder().encode(json));
             return id;
         } else {
             this.onLog('Error: Not connected');

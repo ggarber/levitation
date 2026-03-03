@@ -2,13 +2,38 @@ import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { IncomingMessage, createServer } from 'http';
+import { IncomingMessage, createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
+import { Duplex } from 'stream';
+import fs from 'fs';
+import zlib from 'zlib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const WEB_PORT = 10000;
-const WS_PORT = 9999;
+const WEB_PORT = parseInt(process.env.WEB_PORT || '10000');
+const WS_PORT = parseInt(process.env.WS_PORT || '9999');
+
+// SSL Configuration
+const SSL_KEY_PATH = process.env.SSL_KEY;
+const SSL_CERT_PATH = process.env.SSL_CERT;
+const isSSLEnabled = !!(SSL_KEY_PATH && SSL_CERT_PATH);
+
+let sslOptions: any = null;
+if (isSSLEnabled) {
+    try {
+        sslOptions = {
+            key: fs.readFileSync(SSL_KEY_PATH!),
+            cert: fs.readFileSync(SSL_CERT_PATH!)
+        };
+        console.log(`\x1b[32m[SSL]\x1b[0m SSL enabled with key: ${SSL_KEY_PATH}, cert: ${SSL_CERT_PATH}`);
+    } catch (err: any) {
+        console.error(`\x1b[31m[SSL]\x1b[0m Failed to load SSL certificates: ${err.message}`);
+        process.exit(1);
+    }
+}
+
+const isVerbose = process.argv.includes('--verbose');
 
 const app = express();
 
@@ -105,18 +130,42 @@ app.get('/stats', (req, res) => {
     res.send(html);
 });
 
-app.listen(WEB_PORT, () => {
-    console.log(`Web server listening on http://localhost:${WEB_PORT}`);
+const webServer = isSSLEnabled
+    ? createHttpsServer(sslOptions, app)
+    : createHttpServer(app);
+
+webServer.listen(WEB_PORT, () => {
+    console.log(`Web server listening on ${isSSLEnabled ? 'https' : 'http'}://localhost:${WEB_PORT}`);
 });
 
-const server = createServer();
-const wss = new WebSocketServer({ noServer: true });
+const server = isSSLEnabled
+    ? createHttpsServer(sslOptions)
+    : createHttpServer();
+
+const wss = new WebSocketServer({
+    noServer: true,
+    perMessageDeflate: {
+        zlibDeflateOptions: {
+            chunkSize: 1024,
+            memLevel: 7,
+            level: 3
+        },
+        zlibInflateOptions: {
+            chunkSize: 10 * 1024
+        },
+        clientNoContextTakeover: false,
+        serverNoContextTakeover: false,
+        serverMaxWindowBits: 15,
+        concurrencyLimit: 10,
+        threshold: 1024
+    }
+});
 
 server.listen(WS_PORT, () => {
-    console.log(`WebSocket server listening on ws://localhost:${WS_PORT}`);
+    console.log(`WebSocket server listening on ${isSSLEnabled ? 'wss' : 'ws'}://localhost:${WS_PORT}`);
 });
 
-server.on('upgrade', (request, socket, head) => {
+server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
     const mode = url.searchParams.get('mode');
     const device = url.searchParams.get('device');
@@ -157,6 +206,31 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     };
     connectionStats.set(ws, stats);
 
+    // Wrap send to log outgoing messages and track stats
+    const originalSend = ws.send.bind(ws);
+    ws.send = function (data: any, optionsOrCb?: any, cb?: any): void {
+        stats.messagesSent++;
+
+        if (isVerbose) {
+            try {
+                const text = data instanceof Buffer ? data.toString() : (typeof data === 'string' ? data : JSON.stringify(data));
+                const message = JSON.parse(text);
+                const type = message.type || 'unknown';
+                const requestId = message.id;
+                const length = data.length || data.toString().length;
+                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${length})`);
+            } catch {
+                console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1m(binary or non-json)\x1b[0m`);
+            }
+        }
+
+        if (typeof optionsOrCb === 'function') {
+            originalSend(data, optionsOrCb);
+        } else {
+            originalSend(data, optionsOrCb, cb);
+        }
+    } as any;
+
     if (mode === 'client') {
         const existingClient = clients.get(device);
         if (existingClient) {
@@ -192,85 +266,93 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         }
     }
 
-    ws.on('message', (data: Buffer) => {
+    ws.on('message', (data: Buffer, isBinary: boolean) => {
         stats.messagesReceived++;
+
+        const messageText = data.toString();
+        let message: any;
         try {
-            const message = JSON.parse(data.toString());
-            const type = message.type || 'unknown';
-            const requestId = message.id;
-            const length = data.length;
+            message = JSON.parse(messageText);
+        } catch (err) {
+            if (isVerbose) {
+                console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${device}): \x1b[1m(binary or non-json)\x1b[0m`);
+            }
+            return;
+        }
 
-            console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${length})`);
+        const type = message.type || 'unknown';
+        const requestId = message.id;
 
-            if (type === 'Ping') {
-                ws.send(JSON.stringify({ type: 'Pong', id: requestId }));
-                return;
+        if (isVerbose) {
+            console.log(`\x1b[34m[WS]\x1b[0m Received from ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${data.length}) (isBinary=${isBinary})`);
+        }
+
+        if (type === 'Ping') {
+            ws.send(JSON.stringify({ type: 'Pong', id: requestId }));
+            return;
+        }
+
+        if (mode === 'manager') {
+            if (requestId) {
+                // Store mapping
+                const timeoutId = setTimeout(() => {
+                    const mapping = requestMappings.get(requestId);
+                    if (mapping && mapping.managerWs === ws) {
+                        console.log(`\x1b[31m[WS]\x1b[0m Timeout for request ${requestId}`);
+                        ws.send(JSON.stringify({
+                            type: 'Error',
+                            id: requestId,
+                            body: 'Request timed out',
+                            description: 'timeout'
+                        }));
+                        requestMappings.delete(requestId);
+                    }
+                }, 60000);
+
+                requestMappings.set(requestId, { managerWs: ws, timeoutId });
             }
 
-            if (mode === 'manager') {
-                if (requestId) {
-                    // Store mapping
-                    const timeoutId = setTimeout(() => {
-                        const mapping = requestMappings.get(requestId);
-                        if (mapping && mapping.managerWs === ws) {
-                            console.log(`\x1b[31m[WS]\x1b[0m Timeout for request ${requestId}`);
-                            ws.send(JSON.stringify({
-                                type: 'Error',
-                                id: requestId,
-                                body: 'Request timed out',
-                                description: 'timeout'
-                            }));
-                            requestMappings.delete(requestId);
-                        }
-                    }, 60000);
-
-                    requestMappings.set(requestId, { managerWs: ws, timeoutId });
-                }
-
-                // Forward to client
-                const clientWs = clients.get(device);
-                if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-                    console.log(`\x1b[35m[WS]\x1b[0m Forwarding command to client ${device}`);
-                    clientWs.send(data.toString());
-                } else {
-                    console.log(`\x1b[31m[WS]\x1b[0m No client connected for device ${device}`);
-                    if (requestId) {
-                        const mapping = requestMappings.get(requestId);
-                        if (mapping) {
-                            clearTimeout(mapping.timeoutId);
-                            requestMappings.delete(requestId);
-                        }
-                    }
-                    ws.send(JSON.stringify({
-                        type: 'Error',
-                        id: requestId,
-                        body: 'No client connected for this device ID'
-                    }));
-                }
-            } else if (mode === 'client') {
+            // Forward to client
+            const clientWs = clients.get(device);
+            if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+                if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding command to client ${device} (binary=${isBinary})`);
+                clientWs.send(data, { binary: isBinary });
+            } else {
+                if (isVerbose) console.log(`\x1b[31m[WS]\x1b[0m No client connected for device ${device}`);
                 if (requestId) {
                     const mapping = requestMappings.get(requestId);
                     if (mapping) {
-                        console.log(`\x1b[35m[WS]\x1b[0m Forwarding response to specific manager for request ${requestId}`);
-                        if (mapping.managerWs.readyState === WebSocket.OPEN) {
-                            mapping.managerWs.send(data.toString());
-                        }
                         clearTimeout(mapping.timeoutId);
                         requestMappings.delete(requestId);
-                    } else {
-                        console.log(`\x1b[33m[WS]\x1b[0m Received response for unknown or expired request ${requestId}`);
-                    }
-                } else {
-                    // Forward back to the manager for this device
-                    const managerWs = managers.get(device);
-                    if (managerWs && managerWs.readyState === WebSocket.OPEN) {
-                        console.log(`\x1b[35m[WS]\x1b[0m Forwarding broadcast response to manager`);
-                        managerWs.send(data.toString());
                     }
                 }
+                ws.send(JSON.stringify({
+                    type: 'Error',
+                    id: requestId,
+                    body: 'No client connected for this device ID'
+                }));
             }
-        } catch (err) {
-            console.error('\x1b[31m[WS]\x1b[0m Failed to parse message:', err);
+        } else if (mode === 'client') {
+            if (requestId) {
+                const mapping = requestMappings.get(requestId);
+                if (mapping) {
+                    if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding response to specific manager for request ${requestId} (binary=${isBinary})`);
+                    if (mapping.managerWs.readyState === WebSocket.OPEN) {
+                        mapping.managerWs.send(data, { binary: isBinary });
+                    }
+                    clearTimeout(mapping.timeoutId);
+                    requestMappings.delete(requestId);
+                } else {
+                    if (isVerbose) console.log(`\x1b[33m[WS]\x1b[0m Received response for unknown or expired request ${requestId}`);
+                }
+            } else {
+                // Forward back to the manager for this device
+                const managerWs = managers.get(device);
+                if (managerWs && managerWs.readyState === WebSocket.OPEN) {
+                    if (isVerbose) console.log(`\x1b[35m[WS]\x1b[0m Forwarding broadcast response to manager (binary=${isBinary})`);
+                    managerWs.send(data, { binary: isBinary });
+                }
+            }
         }
     });
 
@@ -294,28 +376,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
             }
         }
     });
-
-    // Wrap send to log outgoing messages and track stats
-    const originalSend = ws.send.bind(ws);
-    ws.send = function (data: any, optionsOrCb?: any, cb?: any): void {
-        stats.messagesSent++;
-        try {
-            const message = JSON.parse(data.toString());
-            const type = message.type || 'unknown';
-            const requestId = message.id;
-            const length = data.toString().length;
-            console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1mtype=${type}\x1b[0m (id=${requestId}) (length=${length})`);
-        } catch {
-            console.log(`\x1b[36m[WS]\x1b[0m Sent to ${mode} (${device}): \x1b[1m(binary or non-json)\x1b[0m`);
-        }
-
-        if (typeof optionsOrCb === 'function') {
-            originalSend(data, optionsOrCb);
-        } else {
-            originalSend(data, optionsOrCb, cb);
-        }
-    } as any;
 });
 
-console.log(`WebSocket server listening on ws://localhost:${WS_PORT}`);
+// WebSocket server is already listening
 

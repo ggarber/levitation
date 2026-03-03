@@ -309,3 +309,9 @@ export async function GetCascadeTrajectoryData(cascadeId: string, port?: string,
     };
     return makeLanguageServerRequest('GetCascadeTrajectory', port, JSON.stringify(body), verbose);
 }
+
+export async function CancelCascadeInvocationData(cascadeId: string, port?: string, verbose: boolean = false) {
+    const body = { cascadeId };
+    return makeLanguageServerRequest('CancelCascadeInvocation', port, JSON.stringify(body), verbose);
+}
+

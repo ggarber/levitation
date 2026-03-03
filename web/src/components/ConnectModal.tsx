@@ -12,7 +12,7 @@ export function ConnectModal({
     isOpen: boolean,
     onClose: () => void
 }) {
-    const { connect, connectionStatus, instanceId } = useClient();
+    const { connect, disconnect, connectionStatus, instanceId } = useClient();
     const [tempId, setTempId] = useState('');
 
     useEffect(() => {
@@ -23,6 +23,7 @@ export function ConnectModal({
 
     const handleConnect = () => {
         if (tempId.trim()) {
+            disconnect();
             connect(tempId.trim());
             onClose();
         }
@@ -40,10 +41,33 @@ export function ConnectModal({
                         <div className="w-16 h-16 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 transition-transform hover:scale-110">
                             <Shield className="w-8 h-8" />
                         </div>
-                        <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">Client <span className="text-blue-500">Connection</span></h2>
-                        <p className="text-base font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
-                            Connect to your unique instance of Levitation. Please enter your terminal GUID to verify access.
-                        </p>
+                        <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">Client <span className="text-blue-500">Sync</span></h2>
+                        <div className="flex flex-col gap-6">
+                            <p className="text-base font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
+                                To sync your agents, you must have the <span className="text-blue-500 font-bold">levitation-client</span> running on your machine. Once started, it will provide your unique <span className="text-blue-500 font-bold">Instance ID</span>.
+                            </p>
+
+                            <div className="relative group/terminal">
+                                <div className="absolute -inset-2 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-2xl blur opacity-0 group-hover/terminal:opacity-100 transition-opacity duration-500" />
+                                <div className="relative bg-slate-950 border border-slate-800 rounded-2xl p-6 font-mono text-[13px] leading-relaxed shadow-2xl">
+                                    <div className="flex gap-1.5 mb-4">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-slate-800" />
+                                        <div className="w-2.5 h-2.5 rounded-full bg-slate-800" />
+                                        <div className="w-2.5 h-2.5 rounded-full bg-slate-800" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-blue-500/50 select-none">1</span>
+                                            <span className="text-slate-300">npm install -g levitation-client</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-blue-500/50 select-none">2</span>
+                                            <span className="text-slate-300">levitation-client start</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Form */}

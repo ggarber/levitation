@@ -47,6 +47,7 @@ interface ClientContextType {
     isLoadingWorkspaces: boolean;
     showLogs: boolean;
     setShowLogs: (show: boolean) => void;
+    cancelCascade: (cascadeId: string) => void;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -316,7 +317,12 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!clientRef.current) {
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:9999';
+            let defaultWsUrl = 'ws://localhost:9999';
+            if (typeof window !== 'undefined') {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                defaultWsUrl = `${protocol}//${window.location.hostname}:9999`;
+            }
+            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
             clientRef.current = new LevitationClient(
                 wsUrl,
                 (status) => setConnectionStatus(status),
@@ -426,6 +432,15 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         setCascadeTimeline(null);
     }, []);
 
+    const cancelCascade = useCallback((cascadeId: string) => {
+        const port = activeCascades[cascadeId] || selectedWorkspaceRef.current?.port;
+        if (!port) return;
+        sendCommand('CancelCascadeInvocationRequest', {
+            cascadeId,
+            port
+        });
+    }, [activeCascades, sendCommand]);
+
     return (
         <ClientContext.Provider value={{
             connectionStatus,
@@ -454,7 +469,8 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             isLoadingTimeline,
             isLoadingWorkspaces,
             showLogs,
-            setShowLogs
+            setShowLogs,
+            cancelCascade
         }}>
             {children}
         </ClientContext.Provider>

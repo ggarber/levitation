@@ -6,9 +6,11 @@ import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({
-    isVisible
+    isVisible,
+    onItemClick
 }: {
-    isVisible: boolean
+    isVisible: boolean;
+    onItemClick?: () => void;
 }) {
     const {
         workspaces,
@@ -62,15 +64,15 @@ export function Sidebar({
                     </h2>
                     <button
                         onClick={refreshWorkspaces}
-                        disabled={connectionStatus !== 'connected'}
-                        className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all active:rotate-180"
+                        disabled={connectionStatus !== 'connected' || isLoadingWorkspaces}
+                        className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
                     >
-                        <RefreshCcw className="w-3.5 h-3.5 text-slate-500" />
+                        <RefreshCcw className={cn("w-3.5 h-3.5 text-slate-500", isLoadingWorkspaces && "animate-spin")} />
                     </button>
                 </div>
 
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-[calc(100vh-12rem)] pr-0">
-                    {isLoadingWorkspaces || (workspaces.length === 0 && connectionStatus === 'connecting') ? (
+                    {(workspaces.length === 0 && (isLoadingWorkspaces || (connectionStatus === 'connecting'))) ? (
                         <div className="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl transition-all">
                             <RefreshCcw className="w-6 h-6 mx-auto mb-3 text-blue-500 animate-spin" />
                             <p className="text-[11px] font-medium leading-relaxed italic text-slate-400 dark:text-slate-600">
@@ -83,7 +85,7 @@ export function Sidebar({
                             <p className="text-[11px] font-medium leading-relaxed italic text-slate-400 dark:text-slate-600">
                                 {connectionStatus === 'connected'
                                     ? 'No active workspaces'
-                                    : 'Connect to explore workspaces'}
+                                    : 'Connect to show workspaces'}
                             </p>
                         </div>
                     ) : (
@@ -106,6 +108,7 @@ export function Sidebar({
                                         onClick={() => {
                                             setSelectedWorkspace(ws);
                                             clearCascadeTimeline();
+                                            onItemClick?.();
                                         }}
                                         className="flex items-center w-full py-2 pl-1 pr-0 rounded-lg text-left transition-all relative group"
                                     >
@@ -134,6 +137,7 @@ export function Sidebar({
                                                             e.stopPropagation();
                                                             setSelectedWorkspace(ws);
                                                             getCascadeTrajectory(cascade.id, ws.port);
+                                                            onItemClick?.();
                                                         }}
                                                         className="flex items-center py-1 group/item"
                                                     >

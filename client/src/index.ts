@@ -10,8 +10,10 @@ import {
     SendUserCascadeMessageData,
     GetWorkspaceInfosData,
     StreamCascadeReactiveUpdatesData,
-    GetCascadeTrajectoryData
+    GetCascadeTrajectoryData,
+    CancelCascadeInvocationData
 } from './commands.js';
+import zlib from 'zlib';
 import crypto from 'crypto';
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
@@ -402,6 +404,24 @@ async function handleCommand(type: string, body: any, verbose: boolean): Promise
                 return { type: 'Error', body: err.message };
             }
         }
+        case 'CancelCascadeInvocationRequest': {
+            const port = body?.port;
+            const cascadeId = body?.cascadeId || body?.cascade;
+
+            if (!cascadeId) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type}: cascadeId is required`);
+                return { type: 'Error', body: 'cascadeId is required' };
+            }
+
+            try {
+                const data = await CancelCascadeInvocationData(cascadeId, port, verbose);
+                console.log(`CancelCascadeInvocationResponse: ${JSON.stringify(data, null, 2)}`);
+                return { type: 'CancelCascadeInvocationResponse', body: { ...data, port } };
+            } catch (err: any) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type} failed for cascade ${cascadeId}:`, err.message);
+                return { type: 'Error', body: err.message };
+            }
+        }
         default:
             console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m Unknown command type: ${type}`);
             return { type: 'Error', body: `Unknown command type: ${type}` };
@@ -445,7 +465,12 @@ async function connectWebSocket(url: string, verbose: boolean) {
         if (!shouldRetry) return;
 
         console.log(`Connecting to WebSocket at ${wsUrl.toString()}...`);
-        const ws = new WebSocket(wsUrl.toString());
+        const ws = new WebSocket(wsUrl.toString(), {
+            perMessageDeflate: {
+                clientNoContextTakeover: false,
+                serverNoContextTakeover: false
+            }
+        });
 
         ws.on('open', () => {
             console.log(`Connected with instance ID: ${deviceId}`);
@@ -458,11 +483,16 @@ async function connectWebSocket(url: string, verbose: boolean) {
 
             reconnectAttempts = 0; // Reset attempts on successful connection
 
+            const send = (msg: any) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    const json = JSON.stringify(msg);
+                    ws.send(Buffer.from(json));
+                }
+            };
+
             // Start heartbeat
             const heartbeatInterval = setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'Ping', id: crypto.randomUUID() }));
-                }
+                send({ type: 'Ping', id: crypto.randomUUID() });
             }, 30000);
 
             ws.on('close', () => {
@@ -477,9 +507,11 @@ async function connectWebSocket(url: string, verbose: boolean) {
             }
         });
 
-        ws.on('message', async (data) => {
+        ws.on('message', async (data: Buffer, isBinary: boolean) => {
             try {
-                const message = JSON.parse(data.toString());
+                const messageText = data.toString();
+                const message = JSON.parse(messageText);
+
                 if (message.type === 'Pong') {
                     return;
                 }
@@ -492,13 +524,21 @@ async function connectWebSocket(url: string, verbose: boolean) {
                 if (message.type) {
                     const requestId = message.id;
                     const response = await handleCommand(message.type, message.body, verbose);
-                    ws.send(JSON.stringify({ ...response, id: requestId }));
+
+                    const json = JSON.stringify({ ...response, id: requestId });
+                    ws.send(Buffer.from(json));
                 }
             } catch (err) {
                 console.error('Failed to process message:', err);
-                const message = JSON.parse(data.toString());
-                const requestId = message?.id;
-                ws.send(JSON.stringify({ type: 'Error', id: requestId, body: 'Invalid message format' }));
+                try {
+                    const messageText = data.toString();
+                    const message = JSON.parse(messageText);
+                    const requestId = message?.id;
+                    const json = JSON.stringify({ type: 'Error', id: requestId, body: 'Invalid message format' });
+                    ws.send(Buffer.from(json));
+                } catch {
+                    // Fallback if we can't even parse the original message ID
+                }
             }
         });
 

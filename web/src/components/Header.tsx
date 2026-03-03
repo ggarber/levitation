@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Power, LogOut, Terminal, Github } from 'lucide-react';
+import { Menu, Power, LogOut, Terminal, Github, Settings } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
@@ -90,15 +90,6 @@ export function Header({
                     </span>
                 )}
 
-                <a
-                    href="https://github.com/ggarber/levitation"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-                >
-                    <Github className="w-5 h-5" />
-                </a>
-
                 <button
                     onClick={handleConnectClick}
                     disabled={connectionStatus === 'connecting'}
@@ -114,6 +105,23 @@ export function Header({
                     )}
                     <span>{config.text}</span>
                 </button>
+
+                <button
+                    onClick={onOpenConnect}
+                    title="Settings"
+                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                >
+                    <Settings className="w-5 h-5" />
+                </button>
+
+                <a
+                    href="https://github.com/ggarber/levitation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                >
+                    <Github className="w-5 h-5" />
+                </a>
             </div>
         </header>
     );

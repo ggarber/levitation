@@ -28,7 +28,9 @@ import {
     Check,
     LayoutGrid,
     ChevronDown,
-    AlertCircle
+    AlertCircle,
+    Globe,
+    Square
 } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
@@ -57,7 +59,8 @@ export function ChatArea() {
         cascadeTimeline,
         getCascadeTrajectory,
         clearCascadeTimeline,
-        isLoadingTimeline
+        isLoadingTimeline,
+        cancelCascade
     } = useClient();
     const [chatText, setChatText] = useState('');
     const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
@@ -87,10 +90,18 @@ export function ChatArea() {
     };
 
     const currentCascadeId = cascadeTimeline?.trajectory?.cascadeId;
+    const cascadeFromList = currentCascadeId && selectedWorkspace
+        ? (cascadesByPort[selectedWorkspace.port] || []).find(c => c.id === currentCascadeId)
+        : null;
     const isCurrentInProgress = currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade;
 
     const handleSend = () => {
-        if (!chatText.trim() || isCurrentInProgress) return;
+        if (!chatText.trim()) {
+            if (isCurrentInProgress && cascadeTimeline?.trajectory?.cascadeId) {
+                cancelCascade(cascadeTimeline.trajectory.cascadeId);
+            }
+            return;
+        }
 
         if (cascadeTimeline?.trajectory?.cascadeId) {
             sendCascadeMessage(chatText, cascadeTimeline.trajectory.cascadeId);
@@ -247,6 +258,24 @@ export function ChatArea() {
                     </div>
                 );
                 break;
+            case 'CORTEX_STEP_TYPE_CODE_ACTION':
+                const isEditAction = step.codeAction?.actionSpec?.command?.isEdit;
+                const actionPath = step.codeAction?.actionSpec?.command?.absolutePathUri || '';
+                icon = <FileCode className="w-4 h-4 text-slate-400" />;
+                if (isEditAction) {
+                    content = (
+                        <div className="flex items-center gap-1.5 w-full min-w-0">
+                            <span className="font-bold text-slate-700 dark:text-slate-200">Edited</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {isReactFile(actionPath) && <ReactLogo />}
+                                <span className="font-bold text-slate-800 dark:text-slate-100">{getFileName(actionPath)}</span>
+                            </div>
+                        </div>
+                    );
+                } else {
+                    content = <span className="font-bold text-slate-700 dark:text-slate-200">Coded</span>;
+                }
+                break;
             case 'CORTEX_STEP_TYPE_CHECKPOINT':
                 icon = <Flag className="w-4 h-4 text-slate-400" />;
                 content = <span className="font-bold text-slate-700 dark:text-slate-200">{step.checkpoint?.userIntent?.split('\n')[0] || 'Checkpoint'}</span>;
@@ -256,11 +285,23 @@ export function ChatArea() {
             case 'CORTEX_STEP_TYPE_ERROR_MESSAGE':
                 icon = <AlertCircle className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Error</span>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">
+                        <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
                             {step.errorMessage?.error?.userErrorMessage || 'An error occurred'}
                         </span>
+                    </div>
+                );
+                break;
+
+            case 'CORTEX_STEP_TYPE_BROWSER_SUBAGENT':
+                icon = <Globe className="w-4 h-4 text-slate-400" />;
+                content = (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Opened URL in Browser</span>
+                        {step.browserSubagent?.url && (
+                            <span className="text-slate-500 truncate ml-1">{step.browserSubagent.url}</span>
+                        )}
                     </div>
                 );
                 break;
@@ -272,6 +313,7 @@ export function ChatArea() {
         if (step.description &&
             step.type !== 'CORTEX_STEP_TYPE_USER_INPUT' &&
             step.type !== 'CORTEX_STEP_TYPE_RUN_COMMAND' &&
+            step.type !== 'CORTEX_STEP_TYPE_BROWSER_SUBAGENT' &&
             step.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE' &&
             step.type !== 'CORTEX_STEP_TYPE_ERROR_MESSAGE') {
             content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.description}</span>;
@@ -320,14 +362,11 @@ export function ChatArea() {
                 <div className="flex items-center justify-between px-8 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 min-h-[64px]">
                     <div className="flex-1 min-w-0">
                         {cascadeTimeline && (
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                                    <Sparkles className="w-4 h-4 text-blue-500" />
-                                </div>
-                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                                    {cascadeTimeline.trajectory?.summary || 'Cascade'}
-                                </h3>
-                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 truncate">
+                                {cascadeTimeline.trajectory?.summary && cascadeTimeline.trajectory.summary !== 'Unknown Session'
+                                    ? cascadeTimeline.trajectory.summary
+                                    : (cascadeFromList?.summary || 'Untitled Session')}
+                            </h3>
                         )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -355,7 +394,7 @@ export function ChatArea() {
                 {/* Main Content */}
                 <div
                     ref={scrollRef}
-                    className="flex-1 overflow-y-auto overflow-x-hidden p-8"
+                    className="flex-1 overflow-y-auto overflow-x-hidden p-8 relative z-20"
                 >
                     {isLoadingTimeline ? (
                         <div className="h-full flex flex-col items-center justify-center space-y-4 animate-pulse">
@@ -381,7 +420,7 @@ export function ChatArea() {
                                         </button>
 
                                         {isWorkspaceMenuOpen && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden py-2 animate-in fade-in zoom-in-95 duration-200 text-left">
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[100] overflow-hidden py-2 animate-in fade-in zoom-in-95 duration-200 text-left">
                                                 <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Switch Workspace</span>
                                                 </div>
@@ -419,12 +458,20 @@ export function ChatArea() {
                             {steps.map((step: any, idx: number) => renderStep(step, idx))}
 
                             {isCurrentInProgress && (
-                                <div className="flex items-center gap-5 px-2 py-4">
-                                    <div className="w-5 flex justify-center">
-                                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
-                                    </div>
-                                    <div className="text-[14px] font-medium text-slate-400 italic">
-                                        {cascadeTimeline?.trajectory?.status || 'Working...'}
+                                <div className="flex items-center px-2 py-4">
+                                    <div className="text-[14px] font-medium text-slate-400 italic flex items-center">
+                                        {cascadeTimeline?.trajectory?.status ? (
+                                            cascadeTimeline.trajectory.status
+                                        ) : (
+                                            <span className="flex items-center">
+                                                Generating
+                                                <span className="flex ml-1">
+                                                    <span className="animate-[bounce_1s_infinite_0ms]">.</span>
+                                                    <span className="animate-[bounce_1s_infinite_200ms] mx-0.5">.</span>
+                                                    <span className="animate-[bounce_1s_infinite_400ms]">.</span>
+                                                </span>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -434,7 +481,7 @@ export function ChatArea() {
                 </div>
 
                 {/* Chat Input Area */}
-                <div className="p-8 pt-0 sticky bottom-0 bg-gradient-to-t from-white dark:from-slate-950 via-white dark:via-slate-950 to-transparent">
+                <div className="p-8 pt-0 sticky bottom-0 bg-gradient-to-t from-white dark:from-slate-950 via-white dark:via-slate-950 to-transparent z-10">
                     <div className="max-w-4xl mx-auto">
                         <div className="bg-slate-50 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col p-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500">
                             <textarea
@@ -452,16 +499,18 @@ export function ChatArea() {
                                 </div>
                                 <button
                                     onClick={handleSend}
-                                    disabled={!chatText.trim() || isCurrentInProgress}
+                                    disabled={!chatText.trim() && !isCurrentInProgress}
                                     className={cn(
                                         "w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg shrink-0",
-                                        (!chatText.trim() || isCurrentInProgress)
+                                        (!chatText.trim() && !isCurrentInProgress)
                                             ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
-                                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/40"
+                                            : (isCurrentInProgress && !chatText.trim())
+                                                ? "bg-slate-200 dark:bg-slate-800 text-red-500 shadow-none hover:bg-slate-300 dark:hover:bg-slate-700"
+                                                : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/40"
                                     )}
                                 >
-                                    {isCurrentInProgress ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    {isCurrentInProgress && !chatText.trim() ? (
+                                        <Square className="w-3.5 h-3.5 fill-current" />
                                     ) : (
                                         <ArrowRight className="w-6 h-6" />
                                     )}
