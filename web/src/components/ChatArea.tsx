@@ -60,7 +60,8 @@ export function ChatArea() {
         getCascadeTrajectory,
         clearCascadeTimeline,
         isLoadingTimeline,
-        cancelCascade
+        cancelCascade,
+        handleCascadeUserInteraction
     } = useClient();
     const [chatText, setChatText] = useState('');
     const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
@@ -210,32 +211,107 @@ export function ChatArea() {
             case 'CORTEX_STEP_TYPE_LIST_DIRECTORY':
                 icon = <Folder className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Analyzed</span>
-                        <span className="text-slate-500 truncate">{getRelativePath(step.listDirectory?.directoryPathUri)}</span>
+                        <span className="text-slate-500">{getRelativePath(step.listDirectory?.directoryPathUri)}</span>
                     </div>
                 );
                 break;
             case 'CORTEX_STEP_TYPE_GREP_SEARCH':
                 icon = <Search className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Searching....</span>
-                        <span className="text-slate-500 truncate">{step.grepSearch?.query}</span>
+                        <span className="text-slate-500">{step.grepSearch?.query}</span>
                     </div>
                 );
                 break;
             case 'CORTEX_STEP_TYPE_VIEW_FILE':
                 icon = <LucideFile className="w-4 h-4 text-slate-400" />;
                 const viewPath = step.viewFile?.absolutePathUri || '';
+                const isWaiting = step.status === 'CORTEX_STEP_STATUS_WAITING';
+                const permissionRequest = step.viewFile?.filePermissionRequest;
+
                 content = (
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-bold text-slate-700 dark:text-slate-200">Analyzed</span>
-                        <div className="flex items-center gap-1 shrink-0">
-                            {isReactFile(viewPath) && <ReactLogo />}
-                            <span className="font-bold text-slate-800 dark:text-slate-100">{getFileName(viewPath)}</span>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-700 dark:text-slate-200">Analyzed</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {isReactFile(viewPath) && <ReactLogo />}
+                                <span className="font-bold text-slate-800 dark:text-slate-100">{getFileName(viewPath)}</span>
+                            </div>
+                            <span className="text-slate-400 shrink-0">#L1-{step.viewFile?.numLines || step.viewFile?.endLine || '...'}</span>
+                            {isWaiting && <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin ml-2" />}
                         </div>
-                        <span className="text-slate-400 shrink-0">#L1-{step.viewFile?.numLines || step.viewFile?.endLine || '...'}</span>
+
+                        {isWaiting && permissionRequest && (
+                            <div className="mt-1 flex flex-col gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-top-1 duration-300">
+                                <div className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                                    Allow file access to <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-[12px]">{permissionRequest.absolutePathUri}</code>?
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                            if (cascadeId) {
+                                                handleCascadeUserInteraction(cascadeId, {
+                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                                    filePermission: {
+                                                        allow: false,
+                                                        absolutePathUri: permissionRequest.absolutePathUri
+                                                    }
+                                                });
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg text-[13px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                    >
+                                        Deny
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                            if (cascadeId) {
+                                                handleCascadeUserInteraction(cascadeId, {
+                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                                    filePermission: {
+                                                        allow: true,
+                                                        scope: 'PERMISSION_SCOPE_ONCE',
+                                                        absolutePathUri: permissionRequest.absolutePathUri
+                                                    }
+                                                });
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
+                                    >
+                                        Allow Once
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                            if (cascadeId) {
+                                                handleCascadeUserInteraction(cascadeId, {
+                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                                    filePermission: {
+                                                        allow: true,
+                                                        scope: 'PERMISSION_SCOPE_CONVERSATION',
+                                                        absolutePathUri: permissionRequest.absolutePathUri
+                                                    }
+                                                });
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
+                                    >
+                                        Allow This Conversation
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
                 break;
@@ -285,9 +361,9 @@ export function ChatArea() {
             case 'CORTEX_STEP_TYPE_ERROR_MESSAGE':
                 icon = <AlertCircle className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Error</span>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
+                        <span className="text-slate-700 dark:text-slate-300 font-medium">
                             {step.errorMessage?.error?.userErrorMessage || 'An error occurred'}
                         </span>
                     </div>
@@ -297,10 +373,10 @@ export function ChatArea() {
             case 'CORTEX_STEP_TYPE_BROWSER_SUBAGENT':
                 icon = <Globe className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Opened URL in Browser</span>
                         {step.browserSubagent?.url && (
-                            <span className="text-slate-500 truncate ml-1">{step.browserSubagent.url}</span>
+                            <span className="text-slate-500 ml-1">{step.browserSubagent.url}</span>
                         )}
                     </div>
                 );
@@ -316,7 +392,7 @@ export function ChatArea() {
             step.type !== 'CORTEX_STEP_TYPE_BROWSER_SUBAGENT' &&
             step.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE' &&
             step.type !== 'CORTEX_STEP_TYPE_ERROR_MESSAGE') {
-            content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.description}</span>;
+            content = <span className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{step.description}</span>;
         }
 
         const isExpanded = expandedSteps[idx];

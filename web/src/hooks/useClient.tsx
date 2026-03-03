@@ -48,6 +48,7 @@ interface ClientContextType {
     showLogs: boolean;
     setShowLogs: (show: boolean) => void;
     cancelCascade: (cascadeId: string) => void;
+    handleCascadeUserInteraction: (cascadeId: string, interaction: any) => void;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -441,6 +442,16 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         });
     }, [activeCascades, sendCommand]);
 
+    const handleCascadeUserInteraction = useCallback((cascadeId: string, interaction: any) => {
+        const port = activeCascades[cascadeId] || selectedWorkspaceRef.current?.port;
+        if (!port) return;
+        sendCommand('HandleCascadeUserInteraction', {
+            cascadeId,
+            interaction,
+            port
+        });
+    }, [activeCascades, sendCommand]);
+
     return (
         <ClientContext.Provider value={{
             connectionStatus,
@@ -470,7 +481,8 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             isLoadingWorkspaces,
             showLogs,
             setShowLogs,
-            cancelCascade
+            cancelCascade,
+            handleCascadeUserInteraction
         }}>
             {children}
         </ClientContext.Provider>

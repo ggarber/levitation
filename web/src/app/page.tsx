@@ -37,12 +37,12 @@ export default function Home() {
 
       <div className="flex flex-1 overflow-hidden relative">
         <div className={cn(
-          "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300",
+          "fixed inset-0 bg-black/50 z-[60] lg:hidden transition-opacity duration-300",
           isSidebarVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )} onClick={() => setIsSidebarVisible(false)} />
 
         <div className={cn(
-          "fixed inset-y-0 left-0 z-50 lg:relative lg:z-0 transform transition-transform duration-300 lg:transform-none",
+          "fixed inset-y-0 left-0 z-[70] lg:relative lg:z-0 transform transition-transform duration-300 lg:transform-none",
           isSidebarVisible ? "translate-x-0" : "-translate-x-full lg:hidden"
         )}>
           <Sidebar isVisible={true} onItemClick={handleSidebarItemClick} />

@@ -315,3 +315,11 @@ export async function CancelCascadeInvocationData(cascadeId: string, port?: stri
     return makeLanguageServerRequest('CancelCascadeInvocation', port, JSON.stringify(body), verbose);
 }
 
+export async function HandleCascadeUserInteractionData(cascadeId: string, interaction: any, port?: string, verbose: boolean = false) {
+    const body = {
+        cascadeId,
+        interaction
+    };
+    return makeLanguageServerRequest('HandleCascadeUserInteraction', port, JSON.stringify(body), verbose);
+}
+

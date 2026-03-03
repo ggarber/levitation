@@ -11,7 +11,8 @@ import {
     GetWorkspaceInfosData,
     StreamCascadeReactiveUpdatesData,
     GetCascadeTrajectoryData,
-    CancelCascadeInvocationData
+    CancelCascadeInvocationData,
+    HandleCascadeUserInteractionData
 } from './commands.js';
 import zlib from 'zlib';
 import crypto from 'crypto';
@@ -417,6 +418,25 @@ async function handleCommand(type: string, body: any, verbose: boolean): Promise
                 const data = await CancelCascadeInvocationData(cascadeId, port, verbose);
                 console.log(`CancelCascadeInvocationResponse: ${JSON.stringify(data, null, 2)}`);
                 return { type: 'CancelCascadeInvocationResponse', body: { ...data, port } };
+            } catch (err: any) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type} failed for cascade ${cascadeId}:`, err.message);
+                return { type: 'Error', body: err.message };
+            }
+        }
+        case 'HandleCascadeUserInteraction': {
+            const port = body?.port;
+            const cascadeId = body?.cascadeId || body?.cascade;
+            const interaction = body?.interaction;
+
+            if (!cascadeId || !interaction) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type}: cascadeId and interaction are required`);
+                return { type: 'Error', body: 'cascadeId and interaction are required' };
+            }
+
+            try {
+                const data = await HandleCascadeUserInteractionData(cascadeId, interaction, port, verbose);
+                console.log(`HandleCascadeUserInteractionResponse: ${JSON.stringify(data, null, 2)}`);
+                return { type: 'HandleCascadeUserInteractionResponse', body: { ...data, port } };
             } catch (err: any) {
                 console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type} failed for cascade ${cascadeId}:`, err.message);
                 return { type: 'Error', body: err.message };

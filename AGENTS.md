@@ -37,6 +37,10 @@ All communication happens over WebSockets using stringified JSON messages.
 -   **Package Management**: Use `pnpm`. Run `pnpm install` from the root.
 -   **UI Design**: Follow the established sleek, dark-mode friendly design system in `/web`. Use `lucide-react` for icons and `tailwind-merge` for style management.
 -   **Error Handling**: Always handle WebSocket disconnections gracefully. The client should attempt to reconnect or report its status clearly.
+-   **Git Guidelines**:
+    -   Use [Conventional Commits](https://www.conventionalcommits.org/).
+    -   Use short, descriptive commit messages.
+    -   Keep commits small with a single responsibility.
 
 ## Key Files
 -   `web/src/hooks/useClient.tsx`: The heart of the web application's state management and communication logic.
