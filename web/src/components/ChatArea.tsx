@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const ReactLogo = () => (
     <svg viewBox="-10.5 -9.45 21 18.9" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-blue-400 inline-block mr-1 mb-0.5">
@@ -194,19 +196,46 @@ export function ChatArea() {
                 content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.userInput?.userResponse || 'User message'}</span>;
                 break;
             case 'CORTEX_STEP_TYPE_PLANNER_RESPONSE':
+                const rawDuration = step.plannerResponse?.thinkingDuration;
+                let thoughtLabel = '';
+                if (rawDuration !== undefined && rawDuration !== null) {
+                    const seconds = typeof rawDuration === 'string'
+                        ? Math.round(parseFloat(rawDuration.replace('s', '')))
+                        : Math.round(rawDuration);
+                    thoughtLabel = seconds === 0 ? 'Thought for <1s' : `Thought for ${seconds}s`;
+                }
+
                 if (step.plannerResponse?.modifiedResponse) {
                     icon = <Sparkles className="w-4 h-4 text-blue-400" />;
                     content = (
-                        <div className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                            {step.plannerResponse.modifiedResponse}
+                        <div className="flex flex-col gap-1.5 w-full">
+                            {thoughtLabel && (
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{thoughtLabel}</span>
+                            )}
+                            <div className="text-slate-700 dark:text-slate-300 leading-relaxed markdown-content">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {step.plannerResponse.modifiedResponse}
+                                </ReactMarkdown>
+                            </div>
                         </div>
                     );
+                    break;
+                } else if (thoughtLabel) {
+                    icon = <Sparkles className="w-4 h-4 text-blue-400" />;
+                    content = <span className="text-slate-700 dark:text-slate-300 font-medium">{thoughtLabel}</span>;
                     break;
                 }
                 return null;
             case 'CORTEX_STEP_TYPE_RUN_COMMAND':
                 icon = <Terminal className="w-4 h-4 text-slate-400" />;
-                content = <span className="text-slate-700 dark:text-slate-300 font-medium">Ran command: {step.runCommand?.comandLine}</span>;
+                content = (
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0">Ran command</span>
+                        <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-900 rounded font-mono text-[13px] text-slate-600 dark:text-slate-400 truncate">
+                            {step.runCommand?.commandLine}
+                        </code>
+                    </div>
+                );
                 break;
             case 'CORTEX_STEP_TYPE_COMMAND_STATUS':
                 icon = <Clock className="w-4 h-4 text-slate-400" />;
@@ -231,8 +260,9 @@ export function ChatArea() {
                 );
                 break;
             case 'CORTEX_STEP_TYPE_VIEW_FILE':
+            case 'CORTEX_STEP_TYPE_VIEW_FILE_OUTLINE':
                 icon = <LucideFile className="w-4 h-4 text-slate-400" />;
-                const viewPath = step.viewFile?.absolutePathUri || '';
+                const viewPath = step.viewFile?.absolutePathUri || step.viewFileOutline?.absolutePathUri || '';
 
                 content = (
                     <div className="flex flex-col gap-2">
@@ -244,7 +274,7 @@ export function ChatArea() {
                             </div>
                             <span className="text-slate-400 shrink-0">
                                 #L1{(() => {
-                                    const end = step.viewFile?.numLines || step.viewFile?.endLine;
+                                    const end = step.viewFile?.numLines || step.viewFile?.endLine || step.viewFileOutline?.numLines || step.viewFileOutline?.endLine;
                                     return end > 1 ? `-${end}` : '';
                                 })()}
                             </span>
@@ -456,7 +486,7 @@ export function ChatArea() {
         );
     };
 
-    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY' && s.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE');
+    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY');
 
     return (
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 transition-all duration-300 overflow-hidden">

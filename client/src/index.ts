@@ -12,7 +12,8 @@ import {
     StreamCascadeReactiveUpdatesData,
     GetCascadeTrajectoryData,
     CancelCascadeInvocationData,
-    HandleCascadeUserInteractionData
+    HandleCascadeUserInteractionData,
+    UpdateConversationAnnotationsData
 } from './commands.js';
 import zlib from 'zlib';
 import crypto from 'crypto';
@@ -20,6 +21,8 @@ import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { setupTray } from './tray.js';
+import { installService, uninstallService } from './service.js';
 
 
 // Suppress the 'NODE_TLS_REJECT_UNAUTHORIZED' warning
@@ -43,6 +46,15 @@ const LOG_FILE = path.join(CONFIG_DIR, 'client.log');
 
 if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
+}
+
+function showConnectionInfo(deviceId: string) {
+    console.log(`\nConnection Instance ID: \x1b[32m${deviceId}\x1b[0m`);
+    console.log('\nScan this QR code or visit the URL below to open the web management interface:');
+    const baseUrl = 'https://levitation.studio';
+    const connectUrl = `${baseUrl}?instance=${deviceId}`;
+    qrcode.generate(connectUrl, { small: true });
+    console.log(`\x1b[36m${connectUrl}\x1b[0m\n`);
 }
 
 function isProcessRunning(pid: number): boolean {
@@ -70,6 +82,7 @@ program
     .option('--SendUserCascadeMessage', 'Send a message to a cascade')
     .option('--StreamCascadeReactiveUpdates', 'Execute StreamCascadeReactiveUpdates request')
     .option('--GetCascadeTrajectory', 'Execute GetCascadeTrajectory request')
+    .option('--UpdateConversationAnnotations', 'Mark a cascade as read')
     .option('--text <text>', 'Text for the cascade message')
     .option('--cascade <id>', 'Cascade ID to use for the message')
     .option('--port <number>', 'Specify the port to use for the request')
@@ -125,9 +138,33 @@ program
             }
             const data = await GetCascadeTrajectoryData(options.cascade, options.port, options.verbose);
             console.log('Trajectory Received:', JSON.stringify(data, null, 2));
-        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'logs'].includes(arg))) {
+            // Automatically mark as read when viewing via CLI
+            await UpdateConversationAnnotationsData(options.cascade, options.port, options.verbose);
+        } else if (options.UpdateConversationAnnotations) {
+            if (!options.cascade) {
+                console.error('Error: --cascade is required for --UpdateConversationAnnotations');
+                return;
+            }
+            const data = await UpdateConversationAnnotationsData(options.cascade, options.port, options.verbose);
+            console.log('Annotations Updated:', JSON.stringify(data, null, 2));
+        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'logs', 'install-service', 'uninstall-service'].includes(arg))) {
             program.help();
         }
+    });
+
+program
+    .command('install-service')
+    .description('Install levitation-client as a background service (restarts on reboot, macOS only)')
+    .option('--connect <url>', 'Connect URL for the background service', DEFAULT_CONNECT_URL)
+    .action(async (options) => {
+        installService(options.connect);
+    });
+
+program
+    .command('uninstall-service')
+    .description('Uninstall the levitation-client background service')
+    .action(async () => {
+        uninstallService();
     });
 
 program
@@ -158,10 +195,38 @@ program
             fs.writeFileSync(PID_FILE, child.pid.toString());
             child.unref();
 
+            const deviceId = getOrGenerateDeviceID();
+            showConnectionInfo(deviceId);
+
             console.log(`\x1b[32mStarted\x1b[0m with PID: ${child.pid}`);
             console.log(`Logs available at: ${LOG_FILE}`);
+            console.log('\nYou can manage the background process with:');
+            console.log('  \x1b[36mlevitation-client status\x1b[0m - Check if the process is running');
+            console.log('  \x1b[36mlevitation-client stop\x1b[0m   - Stop the background process');
+            console.log('  \x1b[36mlevitation-client logs\x1b[0m   - View process logs');
         } else {
             console.error('\x1b[31mError:\x1b[0m Failed to get PID of the background process.');
+        }
+    });
+
+program
+    .command('status')
+    .description('Check the status of the background levitation-client process')
+    .action(async () => {
+        if (!fs.existsSync(PID_FILE)) {
+            console.log('Status: \x1b[31mStopped\x1b[0m (No PID file found)');
+            return;
+        }
+
+        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
+        if (isProcessRunning(pid)) {
+            console.log('Status: \x1b[32mRunning\x1b[0m');
+            console.log(`PID: ${pid}`);
+            const deviceId = getOrGenerateDeviceID();
+            console.log(`Instance ID: ${deviceId}`);
+            console.log(`Logs: ${LOG_FILE}`);
+        } else {
+            console.log('Status: \x1b[31mStopped\x1b[0m (Process not running, but PID file exists)');
         }
     });
 
@@ -442,6 +507,24 @@ async function handleCommand(type: string, body: any, verbose: boolean): Promise
                 return { type: 'Error', body: err.message };
             }
         }
+        case 'UpdateConversationAnnotationsRequest': {
+            const port = body?.port;
+            const cascadeId = body?.cascadeId || body?.cascade;
+
+            if (!cascadeId) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type}: cascadeId is required`);
+                return { type: 'Error', body: 'cascadeId is required' };
+            }
+
+            try {
+                const data = await UpdateConversationAnnotationsData(cascadeId, port, verbose);
+                console.log(`UpdateConversationAnnotationsResponse: ${JSON.stringify(data, null, 2)}`);
+                return { type: 'UpdateConversationAnnotationsResponse', body: { ...data, port } };
+            } catch (err: any) {
+                console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m ${type} failed for cascade ${cascadeId}:`, err.message);
+                return { type: 'Error', body: err.message };
+            }
+        }
         default:
             console.error(`\x1b[31m[COMMAND ERROR]\x1b[0m Unknown command type: ${type}`);
             return { type: 'Error', body: `Unknown command type: ${type}` };
@@ -493,15 +576,15 @@ async function connectWebSocket(url: string, verbose: boolean) {
         });
 
         ws.on('open', () => {
-            console.log(`Connected with instance ID: ${deviceId}`);
-
-            console.log('\nScan this QR code or visit the URL below to open the web management interface:');
-            const baseUrl = 'https://levitation.studio';
-            const connectUrl = `${baseUrl}?instance=${deviceId}`;
-            qrcode.generate(connectUrl, { small: true });
-            console.log(`\x1b[36m${connectUrl}\x1b[0m\n`);
+            showConnectionInfo(deviceId);
 
             reconnectAttempts = 0; // Reset attempts on successful connection
+
+            // Setup System Tray
+            const tray = setupTray(deviceId, () => {
+                ws.close();
+                process.exit(0);
+            });
 
             const send = (msg: any) => {
                 if (ws.readyState === WebSocket.OPEN) {

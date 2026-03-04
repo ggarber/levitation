@@ -49,6 +49,7 @@ interface ClientContextType {
     setShowLogs: (show: boolean) => void;
     cancelCascade: (cascadeId: string) => void;
     handleCascadeUserInteraction: (cascadeId: string, interaction: any) => void;
+    markCascadeAsRead: (cascadeId: string, port: number) => void;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -538,6 +539,35 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         }
     }, [activeCascades, sendCommand, cascadeTimeline]);
 
+    const markCascadeAsRead = useCallback(async (cascadeId: string, port: number) => {
+        // Optimistically remove blue dot
+        setCascadesByPort(prev => {
+            const portCascades = prev[port];
+            if (!portCascades) return prev;
+            return {
+                ...prev,
+                [port]: portCascades.map(c =>
+                    c.id === cascadeId ? { ...c, hasChanges: false } : c
+                )
+            };
+        });
+
+        // Update lastKnownStepsRef so it doesn't reappear on next refresh
+        const portCascades = cascadesByPortRef.current[port];
+        const cascade = portCascades?.find(c => c.id === cascadeId);
+        if (cascade) {
+            lastKnownStepsRef.current[cascadeId] = {
+                count: cascade.stepCount || 0,
+                time: cascade.lastModifiedTime || ''
+            };
+        }
+
+        sendCommand('UpdateConversationAnnotationsRequest', {
+            cascadeId,
+            port
+        });
+    }, [sendCommand]);
+
     const sortedWorkspaces = React.useMemo(() => {
         return [...workspaces].sort((a, b) => {
             const getLatestCascadeTime = (ws: Workspace) => {
@@ -583,7 +613,8 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             showLogs,
             setShowLogs,
             cancelCascade,
-            handleCascadeUserInteraction
+            handleCascadeUserInteraction,
+            markCascadeAsRead
         }}>
             {children}
         </ClientContext.Provider>

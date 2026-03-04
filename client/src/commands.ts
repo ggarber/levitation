@@ -323,3 +323,14 @@ export async function HandleCascadeUserInteractionData(cascadeId: string, intera
     return makeLanguageServerRequest('HandleCascadeUserInteraction', port, JSON.stringify(body), verbose);
 }
 
+export async function UpdateConversationAnnotationsData(cascadeId: string, port?: string, verbose: boolean = false) {
+    const body = {
+        cascadeId,
+        annotations: {
+            lastUserViewTime: new Date().toISOString()
+        },
+        mergeAnnotations: true
+    };
+    return makeLanguageServerRequest('UpdateConversationAnnotations', port, JSON.stringify(body), verbose);
+}
+

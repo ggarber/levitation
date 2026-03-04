@@ -22,7 +22,8 @@ export function Sidebar({
         getCascadeTrajectory,
         clearCascadeTimeline,
         isCascadeInProgress,
-        isLoadingWorkspaces
+        isLoadingWorkspaces,
+        markCascadeAsRead
     } = useClient();
     const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<number, boolean>>({});
     const [showingAllCascades, setShowingAllCascades] = React.useState<Record<number, boolean>>({});
@@ -138,6 +139,7 @@ export function Sidebar({
                                                             e.stopPropagation();
                                                             setSelectedWorkspace(ws);
                                                             getCascadeTrajectory(cascade.id, ws.port);
+                                                            markCascadeAsRead(cascade.id, ws.port);
                                                             onItemClick?.();
                                                         }}
                                                         className="flex items-center py-1 group/item"

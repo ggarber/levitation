@@ -92,3 +92,108 @@ input[type="reset"]:disabled {
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
+
+/* Markdown Content Styling */
+.markdown-content h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.markdown-content p {
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-content code {
+  font-family: var(--font-mono);
+  background-color: oklch(0.9 0 0);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.dark .markdown-content code {
+  background-color: oklch(0.2 0 0);
+}
+
+.markdown-content pre {
+  background-color: oklch(0.96 0 0);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.dark .markdown-content pre {
+  background-color: oklch(0.12 0 0);
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid oklch(0.8 0 0);
+  padding-left: 1rem;
+  font-style: italic;
+  color: oklch(0.4 0 0);
+}
+
+.dark .markdown-content blockquote {
+  border-left-color: oklch(0.3 0 0);
+  color: oklch(0.7 0 0);
+}
+
+.markdown-content a {
+  color: oklch(0.5 0.15 250);
+  text-decoration: underline;
+}
+
+.markdown-content a:hover {
+  color: oklch(0.6 0.2 250);
+}
+
+.markdown-content hr {
+  border: 0;
+  border-top: 1px solid oklch(0.9 0 0);
+  margin: 1rem 0;
+}
+
+.dark .markdown-content hr {
+  border-top-color: oklch(0.2 0 0);
+}
