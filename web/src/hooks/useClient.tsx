@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { LevitationClient, ConnectionStatus } from '@/lib/client';
 
-interface Workspace {
+export interface Workspace {
     workspaceName: string;
     port: number;
     workspaceUri?: string;
@@ -75,7 +75,12 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     const selectedWorkspaceRef = useRef<Workspace | null>(null);
     const cascadesByPortRef = useRef<Record<string, Cascade[]>>({});
     const lastKnownStepsRef = useRef<Record<string, { count: number, time: string }>>({});
+    const workspacesRef = useRef<Workspace[]>([]);
     const handleMessageRef = useRef<(msg: any) => void>(() => { });
+
+    useEffect(() => {
+        workspacesRef.current = workspaces;
+    }, [workspaces]);
 
     useEffect(() => {
         selectedWorkspaceRef.current = selectedWorkspace;
@@ -92,6 +97,11 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     const sendCommand = useCallback((type: string, body: any = {}): string | null => {
         return clientRef.current?.sendCommand(type, body) || null;
     }, []);
+
+    const refreshWorkspaces = useCallback(() => {
+        setIsLoadingWorkspaces(true);
+        sendCommand('EnumerateWorkspacesRequest');
+    }, [sendCommand]);
 
     const handleMessage = useCallback((message: any) => {
         if (message.type === 'EnumerateWorkspacesResponse') {
@@ -128,6 +138,22 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                             return next;
                         });
                     }
+                });
+
+                // Sync current trajectory status if it's in the list
+                setCascadeTimeline((prev: any) => {
+                    if (!prev || !prev.trajectory || !prev.trajectory.cascadeId) return prev;
+                    const summary = trajectories[prev.trajectory.cascadeId];
+                    if (summary && summary.status && prev.trajectory.status !== summary.status) {
+                        return {
+                            ...prev,
+                            trajectory: {
+                                ...prev.trajectory,
+                                status: summary.status
+                            }
+                        };
+                    }
+                    return prev;
                 });
             }
             // Update refs for next comparison
@@ -222,10 +248,12 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             const summary = message.body?.trajectory?.summary || 'Cascade';
 
             // Notification logic
-            if (status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE') {
+            const isFinished = !status || status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
+
+            if (isFinished) {
                 const prevStatus = prevTimeline?.trajectory?.status;
                 // Only notify if it just finished (wasn't finished before)
-                if (prevStatus && prevStatus !== 'CASCADE_RUN_STATUS_DONE' && prevStatus !== 'CASCADE_RUN_STATUS_FAILED' && prevStatus !== 'CASCADE_RUN_STATUS_IDLE') {
+                if (status && prevStatus && prevStatus !== 'CASCADE_RUN_STATUS_DONE' && prevStatus !== 'CASCADE_RUN_STATUS_FAILED' && prevStatus !== 'CASCADE_RUN_STATUS_IDLE') {
                     if (Notification.permission === 'granted') {
                         new Notification('Cascade Finished', {
                             body: `${summary} has ${status === 'CASCADE_RUN_STATUS_DONE' ? 'completed successfully' : (status === 'CASCADE_RUN_STATUS_IDLE' ? 'reached idle state' : 'failed')}.`,
@@ -258,8 +286,17 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         } else if (message.type === 'ClientInfo') {
             setClientVersion(message.body?.version || null);
             addLog(`Client version: ${message.body?.version}`);
+            if (workspacesRef.current.length === 0) {
+                refreshWorkspaces();
+            }
         }
-    }, [addLog, sendCommand]);
+    }, [addLog, sendCommand, refreshWorkspaces]);
+
+    const hasWaitingStep = useCallback((timeline: any) => {
+        if (!timeline) return false;
+        const steps = timeline.trajectory?.steps || timeline.steps || [];
+        return steps.some((s: any) => s.status === 'CORTEX_STEP_STATUS_WAITING');
+    }, []);
 
     useEffect(() => {
         handleMessageRef.current = handleMessage;
@@ -279,10 +316,12 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 // Also poll GetCascadeTrajectoryRequest for the selected one IF it's active
                 const currentCascadeId = cascadeTimeline?.trajectory?.cascadeId;
                 if (currentCascadeId && activeCascades[currentCascadeId]) {
-                    sendCommand('GetCascadeTrajectoryRequest', {
-                        cascadeId: currentCascadeId,
-                        port: activeCascades[currentCascadeId]
-                    });
+                    if (!hasWaitingStep(cascadeTimeline)) {
+                        sendCommand('GetCascadeTrajectoryRequest', {
+                            cascadeId: currentCascadeId,
+                            port: activeCascades[currentCascadeId]
+                        });
+                    }
 
                     // Check for inactivity
                     const now = Date.now();
@@ -323,7 +362,13 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 defaultWsUrl = `${protocol}//${window.location.hostname}:9999`;
             }
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
+            let wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
+            if (typeof window !== 'undefined') {
+                const override = localStorage.getItem('WS_URL');
+                if (override) {
+                    wsUrl = override;
+                }
+            }
             clientRef.current = new LevitationClient(
                 wsUrl,
                 (status) => setConnectionStatus(status),
@@ -380,10 +425,6 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         setActiveCascades({});
     }, []);
 
-    const refreshWorkspaces = useCallback(() => {
-        setIsLoadingWorkspaces(true);
-        sendCommand('EnumerateWorkspacesRequest');
-    }, [sendCommand]);
 
     const clearLogs = useCallback(() => {
         setLogs([]);
@@ -445,19 +486,79 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     const handleCascadeUserInteraction = useCallback((cascadeId: string, interaction: any) => {
         const port = activeCascades[cascadeId] || selectedWorkspaceRef.current?.port;
         if (!port) return;
+
+        // Optimistically update the timeline if it's an "Allow" or "Deny" interaction
+        const isAllow = interaction.filePermission?.allow === true;
+        if (cascadeTimeline?.trajectory?.cascadeId === cascadeId) {
+            setCascadeTimeline((prev: any) => {
+                if (!prev || !prev.trajectory || !prev.trajectory.steps) return prev;
+                const newSteps = [...prev.trajectory.steps];
+                if (newSteps[interaction.stepIndex]) {
+                    // Mark as DONE to bypass hasWaitingStep
+                    newSteps[interaction.stepIndex] = {
+                        ...newSteps[interaction.stepIndex],
+                        status: 'CORTEX_STEP_STATUS_DONE'
+                    };
+                }
+                const newStatus = isAllow ? 'CASCADE_RUN_STATUS_RUNNING' : 'CASCADE_RUN_STATUS_IDLE';
+                return {
+                    ...prev,
+                    trajectory: {
+                        ...prev.trajectory,
+                        steps: newSteps,
+                        status: newStatus
+                    }
+                };
+            });
+        }
+
+        if (!isAllow) {
+            setActiveCascades(prev => {
+                if (!prev[cascadeId]) return prev;
+                const next = { ...prev };
+                delete next[cascadeId];
+                return next;
+            });
+        }
+
         sendCommand('HandleCascadeUserInteraction', {
             cascadeId,
             interaction,
             port
         });
-    }, [activeCascades, sendCommand]);
+
+        // TRIGGER an immediate refresh to resume the cascade loop if allowed
+        if (isAllow) {
+            setTimeout(() => {
+                sendCommand('GetCascadeTrajectoryRequest', {
+                    cascadeId,
+                    port
+                });
+            }, 100);
+        }
+    }, [activeCascades, sendCommand, cascadeTimeline]);
+
+    const sortedWorkspaces = React.useMemo(() => {
+        return [...workspaces].sort((a, b) => {
+            const getLatestCascadeTime = (ws: Workspace) => {
+                const cascades = (cascadesByPort[ws.port] || [])
+                    .filter(cascade =>
+                        !ws.workspaceUri ||
+                        cascade.workspaces?.some((w: any) => w.workspaceFolderAbsoluteUri === ws.workspaceUri)
+                    );
+                if (cascades.length === 0) return 0;
+                return Math.max(...cascades.map(c => new Date(c.createdTime || c.lastModifiedTime || 0).getTime()));
+            };
+            return getLatestCascadeTime(b) - getLatestCascadeTime(a);
+        });
+    }, [workspaces, cascadesByPort]);
 
     return (
         <ClientContext.Provider value={{
             connectionStatus,
             instanceId,
             logs,
-            workspaces,
+            workspaces: sortedWorkspaces,
             cascadesByPort,
             selectedWorkspace,
             connect,

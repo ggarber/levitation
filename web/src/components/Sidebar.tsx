@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { RefreshCcw, LayoutGrid, Zap, Terminal, ChevronDown, ChevronUp, ChevronRight, MessageSquare } from 'lucide-react';
-import { useClient } from '@/hooks/useClient';
+import { useClient, Workspace } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({
@@ -100,7 +100,8 @@ export function Sidebar({
                                     const timeA = new Date(a.createdTime || a.lastModifiedTime || 0).getTime();
                                     const timeB = new Date(b.createdTime || b.lastModifiedTime || 0).getTime();
                                     return timeB - timeA;
-                                });
+                                })
+                                .slice(0, 100);
 
                             return (
                                 <div key={i} className="flex flex-col items-start w-full">

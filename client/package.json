@@ -1,7 +1,7 @@
 {
   "name": "levitation-client",
-  "version": "1.0.0",
-  "description": "CLI to find language server processes",
+  "version": "0.1.0",
+  "description": "CLI to manage and monitor Antigravity agents",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -11,25 +11,43 @@
     "build": "tsc",
     "prepare": "npm run build",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint ."
   },
   "files": [
     "dist",
     "bin"
   ],
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "antigravity",
+    "agent",
+    "cli",
+    "monitoring"
+  ],
+  "author": "ggarber",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ggarber/levitation.git"
+  },
+  "homepage": "https://github.com/ggarber/levitation#readme",
+  "bugs": {
+    "url": "https://github.com/ggarber/levitation/issues"
+  },
   "dependencies": {
     "commander": "^11.0.0",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.19.35",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/ws": "^8.18.1",
+    "eslint": "^9.39.3",
+    "globals": "^17.4.0",
     "ts-node": "^10.9.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.56.1"
   }
 }

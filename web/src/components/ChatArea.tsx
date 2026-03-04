@@ -94,7 +94,11 @@ export function ChatArea() {
     const cascadeFromList = currentCascadeId && selectedWorkspace
         ? (cascadesByPort[selectedWorkspace.port] || []).find(c => c.id === currentCascadeId)
         : null;
-    const isCurrentInProgress = currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade;
+    const trajectoryStatus = cascadeTimeline?.trajectory?.status;
+    const isFinished = trajectoryStatus === 'CASCADE_RUN_STATUS_DONE' ||
+        trajectoryStatus === 'CASCADE_RUN_STATUS_FAILED' ||
+        trajectoryStatus === 'CASCADE_RUN_STATUS_IDLE';
+    const isCurrentInProgress = (currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade) && !isFinished;
 
     const handleSend = () => {
         if (!chatText.trim()) {
@@ -229,8 +233,6 @@ export function ChatArea() {
             case 'CORTEX_STEP_TYPE_VIEW_FILE':
                 icon = <LucideFile className="w-4 h-4 text-slate-400" />;
                 const viewPath = step.viewFile?.absolutePathUri || '';
-                const isWaiting = step.status === 'CORTEX_STEP_STATUS_WAITING';
-                const permissionRequest = step.viewFile?.filePermissionRequest;
 
                 content = (
                     <div className="flex flex-col gap-2">
@@ -240,78 +242,13 @@ export function ChatArea() {
                                 {isReactFile(viewPath) && <ReactLogo />}
                                 <span className="font-bold text-slate-800 dark:text-slate-100">{getFileName(viewPath)}</span>
                             </div>
-                            <span className="text-slate-400 shrink-0">#L1-{step.viewFile?.numLines || step.viewFile?.endLine || '...'}</span>
-                            {isWaiting && <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin ml-2" />}
+                            <span className="text-slate-400 shrink-0">
+                                #L1{(() => {
+                                    const end = step.viewFile?.numLines || step.viewFile?.endLine;
+                                    return end > 1 ? `-${end}` : '';
+                                })()}
+                            </span>
                         </div>
-
-                        {isWaiting && permissionRequest && (
-                            <div className="mt-1 flex flex-col gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-top-1 duration-300">
-                                <div className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                                    Allow file access to <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-[12px]">{permissionRequest.absolutePathUri}</code>?
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
-                                            if (cascadeId) {
-                                                handleCascadeUserInteraction(cascadeId, {
-                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
-                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
-                                                    filePermission: {
-                                                        allow: false,
-                                                        absolutePathUri: permissionRequest.absolutePathUri
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 rounded-lg text-[13px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                                    >
-                                        Deny
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
-                                            if (cascadeId) {
-                                                handleCascadeUserInteraction(cascadeId, {
-                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
-                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
-                                                    filePermission: {
-                                                        allow: true,
-                                                        scope: 'PERMISSION_SCOPE_ONCE',
-                                                        absolutePathUri: permissionRequest.absolutePathUri
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
-                                    >
-                                        Allow Once
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
-                                            if (cascadeId) {
-                                                handleCascadeUserInteraction(cascadeId, {
-                                                    trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
-                                                    stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
-                                                    filePermission: {
-                                                        allow: true,
-                                                        scope: 'PERMISSION_SCOPE_CONVERSATION',
-                                                        absolutePathUri: permissionRequest.absolutePathUri
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
-                                    >
-                                        Allow This Conversation
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 );
                 break;
@@ -396,6 +333,94 @@ export function ChatArea() {
         }
 
         const isExpanded = expandedSteps[idx];
+        const isWaiting = step.status === 'CORTEX_STEP_STATUS_WAITING';
+
+        const renderInteractionUI = () => {
+            if (!isWaiting) return null;
+
+            // Find permission request in any sub-object
+            const subObjects = Object.values(step).filter(v => v && typeof v === 'object');
+            let permissionRequest: any = null;
+            for (const sub of subObjects) {
+                if ((sub as any).filePermissionRequest) {
+                    permissionRequest = (sub as any).filePermissionRequest;
+                    break;
+                }
+            }
+
+            return (
+                <div className="mt-2 ml-10 flex flex-col gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-top-1 duration-300">
+                    <div className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
+                        {permissionRequest ? (
+                            <>Allow access to <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-[12px]">{permissionRequest.absolutePathUri}</code>?</>
+                        ) : (
+                            <>Allow this action?</>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                if (cascadeId) {
+                                    handleCascadeUserInteraction(cascadeId, {
+                                        trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                        stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                        filePermission: {
+                                            allow: false,
+                                            absolutePathUri: permissionRequest?.absolutePathUri || ''
+                                        }
+                                    });
+                                }
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-[13px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                        >
+                            Deny
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                if (cascadeId) {
+                                    handleCascadeUserInteraction(cascadeId, {
+                                        trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                        stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                        filePermission: {
+                                            allow: true,
+                                            scope: 'PERMISSION_SCOPE_ONCE',
+                                            absolutePathUri: permissionRequest?.absolutePathUri || ''
+                                        }
+                                    });
+                                }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
+                        >
+                            Allow Once
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const cascadeId = step.metadata?.sourceTrajectoryStepInfo?.cascadeId;
+                                if (cascadeId) {
+                                    handleCascadeUserInteraction(cascadeId, {
+                                        trajectoryId: step.metadata.sourceTrajectoryStepInfo.trajectoryId,
+                                        stepIndex: step.metadata.sourceTrajectoryStepInfo.stepIndex,
+                                        filePermission: {
+                                            allow: true,
+                                            scope: 'PERMISSION_SCOPE_CONVERSATION',
+                                            absolutePathUri: permissionRequest?.absolutePathUri || ''
+                                        }
+                                    });
+                                }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20"
+                        >
+                            Allow This Conversation
+                        </button>
+                    </div>
+                </div>
+            );
+        };
 
         return (
             <div key={idx} className="flex flex-col mb-1 animate-in fade-in slide-in-from-left-2 duration-300">
@@ -403,7 +428,8 @@ export function ChatArea() {
                     onClick={() => setExpandedSteps(prev => ({ ...prev, [idx]: !prev[idx] }))}
                     className={cn(
                         "flex items-center gap-5 py-2 px-2 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 rounded-lg transition-all group cursor-pointer border border-transparent",
-                        isExpanded && "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800"
+                        isExpanded && "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800",
+                        isWaiting && "bg-slate-50/50 dark:bg-slate-900/20 border-blue-100/30 dark:border-blue-900/20"
                     )}
                 >
                     <div className="flex-shrink-0 w-5 flex justify-center">
@@ -416,6 +442,8 @@ export function ChatArea() {
                         <ChevronRight className={cn("w-3.5 h-3.5 text-slate-300 transition-transform duration-200", isExpanded && "rotate-90 text-blue-500")} />
                     </div>
                 </div>
+
+                {renderInteractionUI()}
 
                 {isExpanded && (
                     <div className="ml-10 mt-1 mb-3 p-4 bg-slate-50 dark:bg-slate-900/80 rounded-xl border border-slate-100 dark:border-slate-800 text-[12px] font-mono text-slate-600 dark:text-slate-400 overflow-x-auto shadow-inner animate-in fade-in slide-in-from-top-2 duration-200">
@@ -536,7 +564,9 @@ export function ChatArea() {
                             {isCurrentInProgress && (
                                 <div className="flex items-center px-2 py-4">
                                     <div className="text-[14px] font-medium text-slate-400 italic flex items-center">
-                                        {cascadeTimeline?.trajectory?.status ? (
+                                        {steps.some((s: any) => s.status === 'CORTEX_STEP_STATUS_WAITING') ? (
+                                            "Waiting for your input..."
+                                        ) : cascadeTimeline?.trajectory?.status ? (
                                             cascadeTimeline.trajectory.status
                                         ) : (
                                             <span className="flex items-center">

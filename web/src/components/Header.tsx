@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Power, LogOut, Terminal, Github, Settings } from 'lucide-react';
+import { Menu, Power, LogOut, Terminal, Github, Settings, SquareTerminal } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
@@ -59,36 +59,19 @@ export function Header({
                     <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                         Levitation
                     </h1>
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500">v0.1 Beta</span>
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500">Google Antigravity Mobile Agent Manager</span>
                 </div>
 
-                <button
-                    onClick={() => {
-                        setSelectedWorkspace(null);
-                        setShowLogs(!showLogs);
-                    }}
-                    className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 ml-4 text-xs font-semibold rounded-lg transition-all uppercase tracking-wide group",
-                        connectionStatus !== 'connected' && "hidden",
-                        showLogs
-                            ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                            : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                    )}
-                >
-                    <Terminal className={cn("w-3.5 h-3.5 transition-colors", showLogs ? "text-white" : "group-hover:text-blue-500")} />
-                    Console
-                </button>
+
             </div>
 
             <div className="flex items-center gap-3">
-                {clientVersion && (
-                    <span
-                        title={instanceId ? `Connected to: ${instanceId}` : undefined}
-                        className="hidden sm:block text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 cursor-help"
-                    >
-                        Client v{clientVersion}
-                    </span>
-                )}
+                <span
+                    title={instanceId ? `Connected to: ${instanceId}` : undefined}
+                    className="hidden sm:block text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 cursor-help"
+                >
+                    {clientVersion ? `Client v${clientVersion}` : 'Client not connected'}
+                </span>
 
                 <button
                     onClick={handleConnectClick}
@@ -104,6 +87,25 @@ export function Header({
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
                     <span>{config.text}</span>
+                </button>
+
+                <button
+                    onClick={() => {
+                        setSelectedWorkspace(null);
+                        setShowLogs(!showLogs);
+                    }}
+                    disabled={connectionStatus !== 'connected'}
+                    title="Logs"
+                    className={cn(
+                        "p-2 rounded-xl transition-colors",
+                        connectionStatus !== 'connected'
+                            ? "text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-50"
+                            : showLogs
+                                ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                                : "text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800"
+                    )}
+                >
+                    <SquareTerminal className="w-5 h-5" />
                 </button>
 
                 <button

@@ -54,7 +54,15 @@ export class LevitationClient {
         this.onStatusChange(this.status);
 
         try {
-            const url = new URL(this.wsUrl);
+            let wsUrl = this.wsUrl;
+            if (typeof window !== 'undefined') {
+                const override = localStorage.getItem('WS_URL');
+                if (override) {
+                    wsUrl = override;
+                }
+            }
+
+            const url = new URL(wsUrl);
             url.searchParams.set('mode', 'manager');
             url.searchParams.set('instance', instanceId);
 
