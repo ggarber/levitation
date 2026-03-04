@@ -7,7 +7,7 @@ const SERVICE_LABEL = 'com.levitation.client';
 
 export function installService(connectUrl: string) {
     if (os.platform() !== 'darwin') {
-        console.error('\x1b[31mError:\x1b[0m install-service is currently only supported on macOS.');
+        console.warn('\x1b[33mWarning:\x1b[0m install-service is currently only supported on macOS.');
         return;
     }
 
@@ -65,7 +65,9 @@ export function installService(connectUrl: string) {
         // Load the service
         try {
             execSync(`launchctl unload ${plistPath}`, { stdio: 'ignore' });
-        } catch (e) { }
+        } catch (e) {
+            // Ignore error if service is not currently loaded
+        }
         execSync(`launchctl load ${plistPath}`);
 
         console.log('\x1b[32mService loaded and started.\x1b[0m It will now start automatically upon login.');
@@ -77,7 +79,7 @@ export function installService(connectUrl: string) {
 
 export function uninstallService() {
     if (os.platform() !== 'darwin') {
-        console.error('\x1b[31mError:\x1b[0m uninstall-service is currently only supported on macOS.');
+        console.warn('\x1b[33mWarning:\x1b[0m uninstall-service is currently only supported on macOS.');
         return;
     }
 

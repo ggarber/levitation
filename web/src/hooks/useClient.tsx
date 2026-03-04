@@ -128,29 +128,35 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             if (port) {
                 setCascadesByPort(prev => ({ ...prev, [port]: cascadeList }));
 
-                // Stop polling for finished cascades
+                // Update activeCascades based on current status
                 cascadeList.forEach(c => {
                     const status = c.status;
-                    if (status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE') {
+                    const isFinished = status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
+
+                    if (isFinished) {
                         setActiveCascades(prev => {
                             if (!prev[c.id]) return prev;
                             const next = { ...prev };
                             delete next[c.id];
                             return next;
                         });
+                    } else if (status) {
+                        // If it has a status and it's not finished, it's active
+                        setActiveCascades(prev => ({ ...prev, [c.id]: port }));
                     }
                 });
 
-                // Sync current trajectory status if it's in the list
+                // Sync current trajectory status and summary if it's in the list
                 setCascadeTimeline((prev: any) => {
                     if (!prev || !prev.trajectory || !prev.trajectory.cascadeId) return prev;
                     const summary = trajectories[prev.trajectory.cascadeId];
-                    if (summary && summary.status && prev.trajectory.status !== summary.status) {
+                    if (summary && (prev.trajectory.status !== summary.status || prev.trajectory.summary !== summary.summary)) {
                         return {
                             ...prev,
                             trajectory: {
                                 ...prev.trajectory,
-                                status: summary.status
+                                status: summary.status || prev.trajectory.status,
+                                summary: summary.summary || prev.trajectory.summary
                             }
                         };
                     }
@@ -214,6 +220,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     const finalPort = port || selectedWorkspaceRef.current.port;
                     if (finalPort) {
                         setActiveCascades(prev => ({ ...prev, [cascadeId]: finalPort }));
+                        markCascadeAsRead(cascadeId, finalPort);
                     }
                 }
             } else if (requestId) {
@@ -249,7 +256,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             const summary = message.body?.trajectory?.summary || 'Cascade';
 
             // Notification logic
-            const isFinished = !status || status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
+            const isFinished = status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
 
             if (isFinished) {
                 const prevStatus = prevTimeline?.trajectory?.status;
@@ -463,8 +470,11 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     }, [sendCommand]);
 
     const getCascadeTrajectory = useCallback((cascadeId: string, port: number) => {
-        setCascadeTimeline(null);
-        setIsLoadingTimeline(true);
+        setCascadeTimeline((prev: any) => {
+            if (prev?.trajectory?.cascadeId === cascadeId) return prev;
+            setIsLoadingTimeline(true);
+            return null;
+        });
         return sendCommand('GetCascadeTrajectoryRequest', {
             cascadeId,
             port

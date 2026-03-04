@@ -15,7 +15,6 @@ import {
     HandleCascadeUserInteractionData,
     UpdateConversationAnnotationsData
 } from './commands.js';
-import zlib from 'zlib';
 import crypto from 'crypto';
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
@@ -39,7 +38,7 @@ const originalEmit = process.emit;
     return originalEmit.apply(process, [name, data, ...args] as any);
 };
 
-const DEFAULT_CONNECT_URL = 'wss://server.levitation.studio';
+const DEFAULT_CONNECT_URL = 'wss://server.levitation.studio:9999';
 const CONFIG_DIR = path.join(os.homedir(), '.levitation');
 const PID_FILE = path.join(CONFIG_DIR, 'client.pid');
 const LOG_FILE = path.join(CONFIG_DIR, 'client.log');
@@ -63,6 +62,82 @@ function isProcessRunning(pid: number): boolean {
         return true;
     } catch (e) {
         return false;
+    }
+}
+
+async function stopClient(silent: boolean = false): Promise<boolean> {
+    if (!fs.existsSync(PID_FILE)) {
+        if (!silent) console.log('\x1b[33mWarning:\x1b[0m No background process found (PID file missing).');
+        return false;
+    }
+
+    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
+    if (isProcessRunning(pid)) {
+        if (!silent) console.log(`Stopping process ${pid}...`);
+        try {
+            process.kill(pid, 'SIGTERM');
+
+            // Wait for process to exit
+            let attempts = 0;
+            while (isProcessRunning(pid) && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+
+            if (isProcessRunning(pid)) {
+                if (!silent) console.log(`Process ${pid} did not stop in time, forcing...`);
+                process.kill(pid, 'SIGKILL');
+            }
+            if (!silent) console.log('\x1b[32mStopped.\x1b[0m');
+        } catch (e) {
+            if (!silent) console.error(`\x1b[31mError:\x1b[0m Failed to stop process ${pid}:`, e);
+        }
+    } else {
+        if (!silent) console.log('\x1b[33mWarning:\x1b[0m Process not running, but PID file exists.');
+    }
+
+    if (fs.existsSync(PID_FILE)) {
+        fs.unlinkSync(PID_FILE);
+    }
+    return true;
+}
+
+async function startClient(options: { connect: string; verbose?: boolean }) {
+    if (fs.existsSync(PID_FILE)) {
+        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
+        if (isProcessRunning(pid)) {
+            console.log(`\x1b[33mWarning:\x1b[0m levitation-client is already running (PID: ${pid})`);
+            return;
+        }
+    }
+
+    const logFd = fs.openSync(LOG_FILE, 'a');
+    const args = [process.argv[1], '--connect', options.connect];
+    if (options.verbose) args.push('--verbose');
+
+    console.log(`Starting levitation-client in background connecting to ${options.connect}...`);
+    const child = spawn(process.execPath, args, {
+        detached: true,
+        stdio: ['ignore', logFd, logFd]
+    });
+
+    if (child.pid) {
+        fs.writeFileSync(PID_FILE, child.pid.toString());
+        child.unref();
+
+        const deviceId = getOrGenerateDeviceID();
+        showConnectionInfo(deviceId);
+
+        console.log(`\x1b[32mStarted\x1b[0m with PID: ${child.pid}`);
+        console.log(`Logs available at: ${LOG_FILE}`);
+        console.log('\nYou can manage the background process with:');
+        console.log('  \x1b[36mlevitation-client status\x1b[0m          - Check if the process is running');
+        console.log('  \x1b[36mlevitation-client stop\x1b[0m            - Stop the background process');
+        console.log('  \x1b[36mlevitation-client restart\x1b[0m         - Restart the background process');
+        console.log('  \x1b[36mlevitation-client logs\x1b[0m            - View process logs');
+        console.log('  \x1b[36mlevitation-client install-service\x1b[0m - Install as a background service');
+    } else {
+        console.error('\x1b[31mError:\x1b[0m Failed to get PID of the background process.');
     }
 }
 
@@ -147,7 +222,7 @@ program
             }
             const data = await UpdateConversationAnnotationsData(options.cascade, options.port, options.verbose);
             console.log('Annotations Updated:', JSON.stringify(data, null, 2));
-        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'logs', 'install-service', 'uninstall-service'].includes(arg))) {
+        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'restart', 'logs', 'install-service', 'uninstall-service'].includes(arg))) {
             program.help();
         }
     });
@@ -173,41 +248,7 @@ program
     .option('--connect <url>', 'Connect to a WebSocket server for remote commands', DEFAULT_CONNECT_URL)
     .option('-v, --verbose', 'Log full body of requests and responses')
     .action(async (options) => {
-        if (fs.existsSync(PID_FILE)) {
-            const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
-            if (isProcessRunning(pid)) {
-                console.log(`\x1b[33mWarning:\x1b[0m levitation-client is already running (PID: ${pid})`);
-                return;
-            }
-        }
-
-        const logFd = fs.openSync(LOG_FILE, 'a');
-        const args = [process.argv[1], '--connect', options.connect];
-        if (options.verbose) args.push('--verbose');
-
-        console.log(`Starting levitation-client in background connecting to ${options.connect}...`);
-        const child = spawn(process.execPath, args, {
-            detached: true,
-            stdio: ['ignore', logFd, logFd]
-        });
-
-        if (child.pid) {
-            fs.writeFileSync(PID_FILE, child.pid.toString());
-            child.unref();
-
-            const deviceId = getOrGenerateDeviceID();
-            showConnectionInfo(deviceId);
-
-            console.log(`\x1b[32mStarted\x1b[0m with PID: ${child.pid}`);
-            console.log(`Logs available at: ${LOG_FILE}`);
-            console.log('\nYou can manage the background process with:');
-            console.log('  \x1b[36mlevitation-client status\x1b[0m          - Check if the process is running');
-            console.log('  \x1b[36mlevitation-client stop\x1b[0m            - Stop the background process');
-            console.log('  \x1b[36mlevitation-client logs\x1b[0m            - View process logs');
-            console.log('  \x1b[36mlevitation-client install-service\x1b[0m - Install as a background service');
-        } else {
-            console.error('\x1b[31mError:\x1b[0m Failed to get PID of the background process.');
-        }
+        await startClient(options);
     });
 
 program
@@ -235,20 +276,21 @@ program
     .command('stop')
     .description('Stop the background levitation-client process')
     .action(async () => {
-        if (!fs.existsSync(PID_FILE)) {
-            console.log('\x1b[33mWarning:\x1b[0m No background process found (PID file missing).');
-            return;
-        }
+        await stopClient();
+    });
 
-        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
-        if (isProcessRunning(pid)) {
-            console.log(`Stopping process ${pid}...`);
-            process.kill(pid, 'SIGTERM');
-            console.log('\x1b[32mStopped.\x1b[0m');
-        } else {
-            console.log('\x1b[33mWarning:\x1b[0m Process not running, but PID file exists.');
-        }
-        fs.unlinkSync(PID_FILE);
+program
+    .command('restart')
+    .description('Restart the background levitation-client process')
+    .option('--connect <url>', 'Connect to a WebSocket server for remote commands', DEFAULT_CONNECT_URL)
+    .option('-v, --verbose', 'Log full body of requests and responses')
+    .action(async (options) => {
+        console.log('Restarting levitation-client...');
+        await stopClient(false);
+        // Small delay to ensure resources are released if needed, 
+        // though stopClient already waits for the process to exit.
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await startClient(options);
     });
 
 program
@@ -566,14 +608,24 @@ async function connectWebSocket(url: string, verbose: boolean) {
     }
 
     let activeWs: WebSocket | null = null;
-
     // Setup System Tray immediately so it shows even if not connected
-    setupTray(deviceId, () => {
+    const tray = setupTray(deviceId, () => {
         if (activeWs) {
             activeWs.close();
         }
         process.exit(0);
     });
+
+    const cleanup = (signal: string) => {
+        console.log(`[Lifecycle] Cleaning up (caught ${signal})...`);
+        if (tray) tray.kill();
+        if (activeWs) activeWs.close();
+        process.exit(0);
+    };
+
+    // Use once to avoid multiple triggers if multiple signals arrive
+    process.once('SIGTERM', () => cleanup('SIGTERM'));
+    process.once('SIGINT', () => cleanup('SIGINT'));
 
     function connect() {
         if (!shouldRetry) return;
@@ -583,12 +635,14 @@ async function connectWebSocket(url: string, verbose: boolean) {
             perMessageDeflate: {
                 clientNoContextTakeover: false,
                 serverNoContextTakeover: false
-            }
+            },
+            rejectUnauthorized: false
         });
         activeWs = ws;
 
         ws.on('open', () => {
             showConnectionInfo(deviceId);
+            tray?.updateStatus(true);
 
             reconnectAttempts = 0; // Reset attempts on successful connection
 
@@ -605,6 +659,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
             }, 30000);
 
             ws.on('close', () => {
+                tray?.updateStatus(false);
                 clearInterval(heartbeatInterval);
             });
         });
@@ -613,6 +668,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
             if (res.statusCode === 400) {
                 console.error(`\x1b[31mError:\x1b[0m Connection failed with status 400 (Bad Request). This usually means invalid parameters. Not retrying.`);
                 shouldRetry = false;
+                tray?.updateStatus(false);
             }
         });
 
@@ -627,6 +683,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
                 if (message.type === 'Error' && message.status === 'Conflict') {
                     console.error(`\x1b[31mError:\x1b[0m ${message.body || 'Connection conflict detected'}. Not retrying.`);
                     shouldRetry = false;
+                    tray?.updateStatus(false);
                     ws.close();
                     return;
                 }
@@ -653,10 +710,12 @@ async function connectWebSocket(url: string, verbose: boolean) {
 
         ws.on('error', (error) => {
             console.error('WebSocket error:', error.message);
+            tray?.updateStatus(false);
         });
 
         ws.on('close', () => {
             console.log('WebSocket connection closed.');
+            tray?.updateStatus(false);
             if (shouldRetry) {
                 const delay = getReconnectDelay(reconnectAttempts);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
