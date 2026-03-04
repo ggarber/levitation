@@ -39,7 +39,7 @@ const originalEmit = process.emit;
     return originalEmit.apply(process, [name, data, ...args] as any);
 };
 
-const DEFAULT_CONNECT_URL = 'ws://server.levitation.studio:9999';
+const DEFAULT_CONNECT_URL = 'wss://server.levitation.studio';
 const CONFIG_DIR = path.join(os.homedir(), '.levitation');
 const PID_FILE = path.join(CONFIG_DIR, 'client.pid');
 const LOG_FILE = path.join(CONFIG_DIR, 'client.log');
@@ -201,9 +201,10 @@ program
             console.log(`\x1b[32mStarted\x1b[0m with PID: ${child.pid}`);
             console.log(`Logs available at: ${LOG_FILE}`);
             console.log('\nYou can manage the background process with:');
-            console.log('  \x1b[36mlevitation-client status\x1b[0m - Check if the process is running');
-            console.log('  \x1b[36mlevitation-client stop\x1b[0m   - Stop the background process');
-            console.log('  \x1b[36mlevitation-client logs\x1b[0m   - View process logs');
+            console.log('  \x1b[36mlevitation-client status\x1b[0m          - Check if the process is running');
+            console.log('  \x1b[36mlevitation-client stop\x1b[0m            - Stop the background process');
+            console.log('  \x1b[36mlevitation-client logs\x1b[0m            - View process logs');
+            console.log('  \x1b[36mlevitation-client install-service\x1b[0m - Install as a background service');
         } else {
             console.error('\x1b[31mError:\x1b[0m Failed to get PID of the background process.');
         }
@@ -564,6 +565,16 @@ async function connectWebSocket(url: string, verbose: boolean) {
         return 1000 * Math.pow(2, attempts - 1);
     }
 
+    let activeWs: WebSocket | null = null;
+
+    // Setup System Tray immediately so it shows even if not connected
+    setupTray(deviceId, () => {
+        if (activeWs) {
+            activeWs.close();
+        }
+        process.exit(0);
+    });
+
     function connect() {
         if (!shouldRetry) return;
 
@@ -574,17 +585,12 @@ async function connectWebSocket(url: string, verbose: boolean) {
                 serverNoContextTakeover: false
             }
         });
+        activeWs = ws;
 
         ws.on('open', () => {
             showConnectionInfo(deviceId);
 
             reconnectAttempts = 0; // Reset attempts on successful connection
-
-            // Setup System Tray
-            const tray = setupTray(deviceId, () => {
-                ws.close();
-                process.exit(0);
-            });
 
             const send = (msg: any) => {
                 if (ws.readyState === WebSocket.OPEN) {

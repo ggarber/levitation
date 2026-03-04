@@ -59,10 +59,6 @@ export function Header({
                     <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                         Levitation
                     </h1>
-                    <div className="flex flex-col leading-[1.1] ml-0.5">
-                        <span className="text-[9px] tracking-wider font-semibold text-slate-400 dark:text-slate-500">Google Antigravity</span>
-                        <span className="text-[9px] tracking-wider font-semibold text-slate-400 dark:text-slate-500">Mobile Agent Manager</span>
-                    </div>
                 </div>
 
 
@@ -123,7 +119,7 @@ export function Header({
                     href="https://github.com/ggarber/levitation"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                    className="hidden sm:block p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
                 >
                     <Github className="w-5 h-5" />
                 </a>

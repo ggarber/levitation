@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { RefreshCcw, LayoutGrid, Zap, Terminal, ChevronDown, ChevronUp, ChevronRight, MessageSquare } from 'lucide-react';
+import { RefreshCcw, LayoutGrid, Zap, Terminal, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Loader2 } from 'lucide-react';
 import { useClient, Workspace } from '@/hooks/useClient';
 import { cn } from '@/lib/utils';
 
@@ -147,7 +147,9 @@ export function Sidebar({
                                                         <span className="text-slate-700 dark:text-slate-300 group-hover/item:text-blue-500 dark:group-hover/item:text-blue-400 transition-colors truncate cursor-pointer flex-1">
                                                             {cascade.summary || 'Untitled Session'}
                                                         </span>
-                                                        {cascade.hasChanges && (
+                                                        {isCascadeInProgress(cascade.id) ? (
+                                                            <Loader2 className="ml-2 w-3.5 h-3.5 text-blue-500 animate-spin" />
+                                                        ) : cascade.hasChanges && (
                                                             <div className="ml-2 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                                                         )}
                                                     </div>
