@@ -23,6 +23,9 @@ import path from 'path';
 import { setupTray } from './tray.js';
 import { installService, uninstallService } from './service.js';
 
+const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const VERSION = pkg.version;
+
 
 // Suppress the 'NODE_TLS_REJECT_UNAUTHORIZED' warning
 const originalEmit = process.emit;
@@ -146,7 +149,7 @@ const program = new Command();
 program
     .name('levitation')
     .description('A basic CLI tool for levitation')
-    .version('1.0.0');
+    .version(VERSION);
 
 program
     .option('--EnumerateWorkspaces', 'Search for workspaces from language_* processes')
@@ -222,7 +225,7 @@ program
             }
             const data = await UpdateConversationAnnotationsData(options.cascade, options.port, options.verbose);
             console.log('Annotations Updated:', JSON.stringify(data, null, 2));
-        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'restart', 'logs', 'install-service', 'uninstall-service'].includes(arg))) {
+        } else if (!process.argv.slice(2).some(arg => ['start', 'stop', 'restart', 'logs', 'install-service', 'uninstall-service', 'version'].includes(arg))) {
             program.help();
         }
     });
@@ -309,6 +312,13 @@ program
             tail.kill();
             process.exit();
         });
+    });
+
+program
+    .command('version')
+    .description('Display the version of levitation-client')
+    .action(() => {
+        console.log(VERSION);
     });
 
 function printWorkspaces(results: any[]) {
@@ -596,7 +606,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
     const wsUrl = new URL(url);
     wsUrl.searchParams.set('mode', 'client');
     wsUrl.searchParams.set('instance', deviceId);
-    wsUrl.searchParams.set('version', '0.0.1');
+    wsUrl.searchParams.set('version', VERSION);
 
     let reconnectAttempts = 0;
     let shouldRetry = true;
