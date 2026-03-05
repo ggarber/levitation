@@ -38,7 +38,7 @@ interface ClientContextType {
     sendMessage: (text: string) => void;
     sendCascadeMessage: (text: string, cascadeId: string) => void;
     streamCascadeReactiveUpdates: (cascadeId: string, port: number) => string | null;
-    getCascadeTrajectory: (cascadeId: string, port: number) => string | null;
+    getCascadeTrajectory: (cascadeId: string, port: number, optimisticSummary?: string) => string | null;
     clearCascadeTimeline: () => void;
     cascadeTimeline: any;
     clientVersion: string | null;
@@ -131,9 +131,11 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 // Update activeCascades based on current status
                 cascadeList.forEach(c => {
                     const status = c.status;
-                    const isFinished = status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
+                    const isInactive = status === 'CASCADE_RUN_STATUS_DONE' ||
+                        status === 'CASCADE_RUN_STATUS_FAILED' ||
+                        status === 'CASCADE_RUN_STATUS_IDLE';
 
-                    if (isFinished) {
+                    if (isInactive) {
                         setActiveCascades(prev => {
                             if (!prev[c.id]) return prev;
                             const next = { ...prev };
@@ -141,8 +143,11 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                             return next;
                         });
                     } else if (status) {
-                        // If it has a status and it's not finished, it's active
-                        setActiveCascades(prev => ({ ...prev, [c.id]: port }));
+                        // If it has a status and it's not inactive, it's active
+                        setActiveCascades(prev => {
+                            if (prev[c.id] === port) return prev;
+                            return { ...prev, [c.id]: port };
+                        });
                     }
                 });
 
@@ -197,7 +202,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 // Switch to this cascade immediately in the main area
-                getCascadeTrajectory(cascadeId, port || selectedWorkspaceRef.current.port);
+                getCascadeTrajectory(cascadeId, port || selectedWorkspaceRef.current.port, pendingMessage || 'New Cascade');
 
                 if (pendingMessage) {
                     sendCommand('SendUserCascadeMessageRequest', {
@@ -219,7 +224,10 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 if (port || selectedWorkspaceRef.current.port) {
                     const finalPort = port || selectedWorkspaceRef.current.port;
                     if (finalPort) {
-                        setActiveCascades(prev => ({ ...prev, [cascadeId]: finalPort }));
+                        setActiveCascades(prev => {
+                            if (prev[cascadeId] === finalPort) return prev;
+                            return { ...prev, [cascadeId]: finalPort };
+                        });
                         markCascadeAsRead(cascadeId, finalPort);
                     }
                 }
@@ -238,7 +246,10 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     return next;
                 });
                 if (port) {
-                    setActiveCascades(prev => ({ ...prev, [cascadeId]: port }));
+                    setActiveCascades(prev => {
+                        if (prev[cascadeId] === port) return prev;
+                        return { ...prev, [cascadeId]: port };
+                    });
                     sendCommand('GetAllCascadeTrajectoriesRequest', { port });
                     sendCommand('GetCascadeTrajectoryRequest', { cascadeId, port });
                 }
@@ -256,9 +267,10 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             const summary = message.body?.trajectory?.summary || 'Cascade';
 
             // Notification logic
-            const isFinished = status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED' || status === 'CASCADE_RUN_STATUS_IDLE';
+            const isFinished = status === 'CASCADE_RUN_STATUS_DONE' || status === 'CASCADE_RUN_STATUS_FAILED';
 
-            if (isFinished) {
+            if (isFinished || status === 'CASCADE_RUN_STATUS_IDLE') {
+                const finalIsInactive = isFinished || status === 'CASCADE_RUN_STATUS_IDLE';
                 const prevStatus = prevTimeline?.trajectory?.status;
                 // Only notify if it just finished (wasn't finished before)
                 if (status && prevStatus && prevStatus !== 'CASCADE_RUN_STATUS_DONE' && prevStatus !== 'CASCADE_RUN_STATUS_FAILED' && prevStatus !== 'CASCADE_RUN_STATUS_IDLE') {
@@ -270,7 +282,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     }
                 }
 
-                if (cascadeId) {
+                if (finalIsInactive && cascadeId) {
                     setActiveCascades(prev => {
                         if (!prev[cascadeId]) return prev;
                         const next = { ...prev };
@@ -282,7 +294,10 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 // Keep polling or start polling if not already
                 const port = message.body?.port || selectedWorkspaceRef.current?.port;
                 if (port && cascadeId) {
-                    setActiveCascades(prev => ({ ...prev, [cascadeId]: port }));
+                    setActiveCascades(prev => {
+                        if (prev[cascadeId] === port) return prev;
+                        return { ...prev, [cascadeId]: port };
+                    });
                 }
             }
         } else if (message.type === 'error') {
@@ -290,6 +305,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             setIsStartingNewCascade(false);
             setSendingCascadeIds({});
             setIsLoadingWorkspaces(false);
+            setIsLoadingTimeline(false);
             if (message.id) pendingRequestsRef.current.delete(message.id);
         } else if (message.type === 'ClientInfo') {
             setClientVersion(message.body?.version || null);
@@ -469,9 +485,20 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         });
     }, [sendCommand]);
 
-    const getCascadeTrajectory = useCallback((cascadeId: string, port: number) => {
+    const getCascadeTrajectory = useCallback((cascadeId: string, port: number, optimisticSummary?: string) => {
         setCascadeTimeline((prev: any) => {
             if (prev?.trajectory?.cascadeId === cascadeId) return prev;
+            if (optimisticSummary) {
+                return {
+                    trajectory: {
+                        cascadeId: cascadeId,
+                        summary: optimisticSummary,
+                        steps: [],
+                        status: 'CASCADE_RUN_STATUS_RUNNING'
+                    },
+                    port
+                };
+            }
             setIsLoadingTimeline(true);
             return null;
         });

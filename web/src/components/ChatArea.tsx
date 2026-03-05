@@ -96,11 +96,13 @@ export function ChatArea() {
     const cascadeFromList = currentCascadeId && selectedWorkspace
         ? (cascadesByPort[selectedWorkspace.port] || []).find(c => c.id === currentCascadeId)
         : null;
+    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY');
     const trajectoryStatus = cascadeTimeline?.trajectory?.status;
     const isFinished = trajectoryStatus === 'CASCADE_RUN_STATUS_DONE' ||
-        trajectoryStatus === 'CASCADE_RUN_STATUS_FAILED' ||
-        trajectoryStatus === 'CASCADE_RUN_STATUS_IDLE';
-    const isCurrentInProgress = (currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade) && !isFinished;
+        trajectoryStatus === 'CASCADE_RUN_STATUS_FAILED';
+    const hasWaitingSteps = steps.some((s: any) => s.status === 'CORTEX_STEP_STATUS_WAITING');
+    const isActuallyRunning = (currentCascadeId ? isCascadeInProgress(currentCascadeId) : isStartingNewCascade) && !isFinished;
+    const isCurrentInProgress = hasWaitingSteps || (isActuallyRunning && trajectoryStatus === 'CASCADE_RUN_STATUS_RUNNING');
 
     const handleSend = () => {
         if (!chatText.trim()) {
@@ -193,7 +195,8 @@ export function ChatArea() {
         switch (step.type) {
             case 'CORTEX_STEP_TYPE_USER_INPUT':
                 icon = <User className="w-4 h-4 text-slate-400" />;
-                content = <span className="text-slate-700 dark:text-slate-300 font-medium">{step.userInput?.userResponse || 'User message'}</span>;
+                const userMsg = step.userInput?.userResponse || 'User message';
+                content = <span className="text-slate-700 dark:text-slate-300 font-medium">{userMsg.charAt(0).toUpperCase() + userMsg.slice(1)}</span>;
                 break;
             case 'CORTEX_STEP_TYPE_PLANNER_RESPONSE':
                 const rawDuration = step.plannerResponse?.thinkingDuration;
@@ -321,18 +324,30 @@ export function ChatArea() {
                 break;
             case 'CORTEX_STEP_TYPE_CHECKPOINT':
                 icon = <Flag className="w-4 h-4 text-slate-400" />;
-                content = <span className="font-bold text-slate-700 dark:text-slate-200">{step.checkpoint?.userIntent?.split('\n')[0] || 'Checkpoint'}</span>;
+                const checkpointTxt = step.checkpoint?.userIntent?.split('\n')[0] || 'Checkpoint';
+                content = <span className="font-bold text-slate-700 dark:text-slate-200">{checkpointTxt.charAt(0).toUpperCase() + checkpointTxt.slice(1)}</span>;
                 break;
             case 'CORTEX_STEP_TYPE_EPHEMERAL_MESSAGE':
                 return null;
             case 'CORTEX_STEP_TYPE_ERROR_MESSAGE':
                 icon = <AlertCircle className="w-4 h-4 text-slate-400" />;
                 content = (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-col gap-1">
                         <span className="font-bold text-slate-700 dark:text-slate-200">Error</span>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">
+                        <span className="text-slate-500 dark:text-slate-400 text-[13px] font-medium leading-tight">
                             {step.errorMessage?.error?.userErrorMessage || 'An error occurred'}
                         </span>
+                    </div>
+                );
+                break;
+
+            case 'CORTEX_STEP_TYPE_FIND':
+            case 'CORTEX_STEP_TYPE_FIND_BY_NAME':
+                icon = <Search className="w-4 h-4 text-slate-400" />;
+                content = (
+                    <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Find</span>
+                        <span className="text-slate-500">{step.find?.pattern || step.findByName?.pattern}</span>
                     </div>
                 );
                 break;
@@ -350,7 +365,8 @@ export function ChatArea() {
                 break;
 
             default:
-                content = <span className="text-slate-500 text-xs italic">{step.type.replace('CORTEX_STEP_TYPE_', '').replace(/_/g, ' ').toLowerCase()}</span>;
+                const typeLabel = step.type.replace('CORTEX_STEP_TYPE_', '').replace(/_/g, ' ');
+                content = <span className="text-slate-500 text-xs italic">{typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1).toLowerCase()}</span>;
         }
 
         if (step.description &&
@@ -359,7 +375,9 @@ export function ChatArea() {
             step.type !== 'CORTEX_STEP_TYPE_BROWSER_SUBAGENT' &&
             step.type !== 'CORTEX_STEP_TYPE_PLANNER_RESPONSE' &&
             step.type !== 'CORTEX_STEP_TYPE_ERROR_MESSAGE') {
-            content = <span className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{step.description}</span>;
+            const desc = step.description;
+            const capitalizedDesc = desc.charAt(0).toUpperCase() + desc.slice(1);
+            content = <span className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{capitalizedDesc}</span>;
         }
 
         const isExpanded = expandedSteps[idx];
@@ -457,18 +475,18 @@ export function ChatArea() {
                 <div
                     onClick={() => setExpandedSteps(prev => ({ ...prev, [idx]: !prev[idx] }))}
                     className={cn(
-                        "flex items-center gap-5 py-2 px-2 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 rounded-lg transition-all group cursor-pointer border border-transparent",
+                        "flex items-start gap-5 py-2 px-2 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 rounded-lg transition-all group cursor-pointer border border-transparent",
                         isExpanded && "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800",
                         isWaiting && "bg-slate-50/50 dark:bg-slate-900/20 border-blue-100/30 dark:border-blue-900/20"
                     )}
                 >
-                    <div className="flex-shrink-0 w-5 flex justify-center">
+                    <div className="flex-shrink-0 w-5 flex justify-center mt-0.5">
                         {icon}
                     </div>
                     <div className="flex-1 min-w-0 text-[14px]">
                         {content}
                     </div>
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 mt-0.5">
                         <ChevronRight className={cn("w-3.5 h-3.5 text-slate-300 transition-transform duration-200", isExpanded && "rotate-90 text-blue-500")} />
                     </div>
                 </div>
@@ -485,8 +503,6 @@ export function ChatArea() {
             </div>
         );
     };
-
-    const steps = (cascadeTimeline?.trajectory?.steps || cascadeTimeline?.steps || []).filter((s: any) => s.type !== 'CORTEX_STEP_TYPE_CONVERSATION_HISTORY');
 
     return (
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-950 transition-all duration-300 overflow-hidden">
@@ -535,11 +551,20 @@ export function ChatArea() {
                             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                             <p className="text-slate-500 font-medium">Loading timeline...</p>
                         </div>
-                    ) : !cascadeTimeline ? (
+                    ) : (!cascadeTimeline || isStartingNewCascade) ? (
                         <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6">
-                            <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shadow-inner">
-                                <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
-                            </div>
+                            {isStartingNewCascade ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                                    <p className="text-slate-500 font-medium">Starting new conversation...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shadow-inner">
+                                        <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
+                                    </div>
+                                </>
+                            )}
                             <div className="relative">
                                 <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 mb-2 flex items-center justify-center flex-wrap gap-x-2 gap-y-1">
                                     <span>Start new conversation in</span>
