@@ -22,6 +22,7 @@ import os from 'os';
 import path from 'path';
 import { setupTray } from './tray.js';
 import { installService, uninstallService } from './service.js';
+import net from 'net';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const VERSION = pkg.version;
@@ -45,6 +46,7 @@ const DEFAULT_CONNECT_URL = 'wss://server.levitation.studio:9999';
 const CONFIG_DIR = path.join(os.homedir(), '.levitation');
 const PID_FILE = path.join(CONFIG_DIR, 'client.pid');
 const LOG_FILE = path.join(CONFIG_DIR, 'client.log');
+const IPC_SOCKET = path.join(CONFIG_DIR, 'client.sock');
 
 if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
@@ -266,6 +268,36 @@ program
         const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim());
         if (isProcessRunning(pid)) {
             console.log('Status: \x1b[32mRunning\x1b[0m');
+
+            // Try to get connection status via IPC
+            try {
+                const connectionStatus = await new Promise<string>((resolve) => {
+                    const client = net.createConnection(IPC_SOCKET);
+                    client.on('connect', () => {
+                        client.write(JSON.stringify({ type: 'status' }));
+                    });
+                    client.on('data', (data) => {
+                        try {
+                            const response = JSON.parse(data.toString());
+                            resolve(response.connected ? '\x1b[32mConnected\x1b[0m' : '\x1b[31mDisconnected\x1b[0m');
+                        } catch {
+                            resolve('\x1b[33mUnknown\x1b[0m');
+                        }
+                        client.destroy();
+                    });
+                    client.on('error', () => {
+                        resolve('\x1b[33mUnknown\x1b[0m (Background process not responding to IPC)');
+                    });
+                    setTimeout(() => {
+                        client.destroy();
+                        resolve('\x1b[33mUnknown\x1b[0m (Timeout waiting for IPC response)');
+                    }, 500);
+                });
+                console.log(`Connection: ${connectionStatus}`);
+            } catch (err) {
+                // Ignore IPC errors, just show process status
+            }
+
             console.log(`PID: ${pid}`);
             const deviceId = getOrGenerateDeviceID();
             console.log(`Instance ID: ${deviceId}`);
@@ -618,16 +650,56 @@ async function connectWebSocket(url: string, verbose: boolean) {
     }
 
     let activeWs: WebSocket | null = null;
+    let isConnected = false;
+
+    // Start IPC Server
+    if (fs.existsSync(IPC_SOCKET)) {
+        try { fs.unlinkSync(IPC_SOCKET); } catch (e) { /* ignore */ }
+    }
+
+    const ipcServer = net.createServer((socket) => {
+        socket.on('data', (data) => {
+            try {
+                const request = JSON.parse(data.toString());
+                if (request.type === 'status') {
+                    socket.write(JSON.stringify({ connected: isConnected }));
+                    // Force a tray update when status is checked to ensure sync
+                    tray?.updateStatus(isConnected);
+                }
+            } catch (e) { /* ignore */ }
+        });
+    });
+
+    ipcServer.listen(IPC_SOCKET, () => {
+        if (verbose) console.log(`[IPC] Server listening on ${IPC_SOCKET}`);
+    });
+
+    ipcServer.on('error', (err) => {
+        console.error(`[IPC] Server error: ${err.message}`);
+    });
+
     // Setup System Tray immediately so it shows even if not connected
     const tray = setupTray(deviceId, () => {
         if (activeWs) {
             activeWs.close();
         }
+        clearInterval(traySyncInterval);
+        ipcServer.close();
         process.exit(0);
     });
 
+    // Periodic tray sync (every 5 seconds)
+    const traySyncInterval = setInterval(() => {
+        tray?.updateStatus(isConnected);
+    }, 5000);
+
     const cleanup = (signal: string) => {
         console.log(`[Lifecycle] Cleaning up (caught ${signal})...`);
+        clearInterval(traySyncInterval);
+        ipcServer.close();
+        if (fs.existsSync(IPC_SOCKET)) {
+            try { fs.unlinkSync(IPC_SOCKET); } catch (e) { /* ignore */ }
+        }
         if (tray) tray.kill();
         if (activeWs) activeWs.close();
         process.exit(0);
@@ -651,6 +723,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
         activeWs = ws;
 
         ws.on('open', () => {
+            isConnected = true;
             showConnectionInfo(deviceId);
             tray?.updateStatus(true);
 
@@ -669,7 +742,10 @@ async function connectWebSocket(url: string, verbose: boolean) {
             }, 30000);
 
             ws.on('close', () => {
-                tray?.updateStatus(false);
+                if (activeWs === ws) {
+                    isConnected = false;
+                    tray?.updateStatus(false);
+                }
                 clearInterval(heartbeatInterval);
             });
         });
@@ -678,7 +754,10 @@ async function connectWebSocket(url: string, verbose: boolean) {
             if (res.statusCode === 400) {
                 console.error(`\x1b[31mError:\x1b[0m Connection failed with status 400 (Bad Request). This usually means invalid parameters. Not retrying.`);
                 shouldRetry = false;
-                tray?.updateStatus(false);
+                if (activeWs === ws) {
+                    isConnected = false;
+                    tray?.updateStatus(false);
+                }
             }
         });
 
@@ -693,7 +772,10 @@ async function connectWebSocket(url: string, verbose: boolean) {
                 if (message.type === 'Error' && message.status === 'Conflict') {
                     console.error(`\x1b[31mError:\x1b[0m ${message.body || 'Connection conflict detected'}. Not retrying.`);
                     shouldRetry = false;
-                    tray?.updateStatus(false);
+                    if (activeWs === ws) {
+                        isConnected = false;
+                        tray?.updateStatus(false);
+                    }
                     ws.close();
                     return;
                 }
@@ -720,12 +802,18 @@ async function connectWebSocket(url: string, verbose: boolean) {
 
         ws.on('error', (error) => {
             console.error('WebSocket error:', error.message);
-            tray?.updateStatus(false);
+            if (activeWs === ws) {
+                isConnected = false;
+                tray?.updateStatus(false);
+            }
         });
 
         ws.on('close', () => {
             console.log('WebSocket connection closed.');
-            tray?.updateStatus(false);
+            if (activeWs === ws) {
+                isConnected = false;
+                tray?.updateStatus(false);
+            }
             if (shouldRetry) {
                 const delay = getReconnectDelay(reconnectAttempts);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);

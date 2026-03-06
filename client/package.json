@@ -1,6 +1,6 @@
 {
   "name": "levitation-client",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "CLI to manage and monitor Antigravity agents",
   "type": "module",
   "main": "dist/index.js",

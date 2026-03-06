@@ -7,8 +7,8 @@ import path from 'path';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-const ICON_CONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAIAAABL1vtsAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAARGVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAADoAEAAwAAAAEAAQAAoAIABAAAAAEAAAAWoAMABAAAAAEAAAAWAAAAABwhM1oAAAHJaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+CiAgIDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+CiAgICAgIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAgICAgICAgICAgIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj4KICAgICAgICAgPGV4aWY6Q29sb3JTcGFjZT4xPC9leGlmOkNvbG9yU3BhY2U+CiAgICAgICAgIDxleGlmOlBpeGVsWERpbWVuc2lvbj4zMjwvZXhpZjpQaXhlbFhEaW1lbnNpb24+CiAgICAgICAgIDxleGlmOlBpeGVsWURpbWVuc2lvbj4zMjwvZXhpZjpQaXhlbFlEaW1lbnNpb24+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgqWsr5jAAAB90lEQVQ4EaVUzU7CQBCebetJE6sxRk/G6EGRA4niVV5AifJYylnp2Z+EB4AErvoM1ugzSEQhIZau3+y22y3WC06a7fx9387MbivI80gSCcpkxswCVJBJ0iVHkBAcm1OEx8C58ap2Z869NUzt/T8KRaQaQT2ml+mUDUzHcWcLjKckkSfIzYUwTodkeh4y3trerlQq49F4PBoxkREZr62vV4+PMf6PwSALcQoOFY+rHqLzi8Z3FF01m4xFIdqvtr1sNqMoumg0OJT4FTZPIVZWVp/Dl9e3t43NzSyVCCacYRgigUvQFGr7/Dg9dzB4b7fbuzs7J7UaU6QCE06EkDAzi3wj4CaxVyoNh8NOt+vA5F5cKJ1uB06E1DjTxvUQco0ojLewcHv/MJlMDqtHuojDahXm3f0DQtaA1CDAQp6bjVN3SHRar0spr1stTXF904J5Vq+zqXPslSlsG7oQy77/+PQEWBAErSCAAtP3/WyQBpJUYWyjEJUOyr1eD2BIv98/KJeLS/A8wVWYq6Xr1us0Wlxa2tvfhxU+h6OvTy62SH5R2Jc9jknGjBIOX+JCAUHiN0jzsSDAsD+Qhk4aCu2yvgl22HRmDwNOlXQTO9sGz5CmMPttNWK7NdJeES2m4x+fwLC4ZmTgaJI8bWvWRMfpcpD/AFDVW2k/vYmisbCj7V4AAAAASUVORK5CYIIo';
-const ICON_DISCONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAIAAABL1vtsAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAARGVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAADoAEAAwAAAAEAAQAAoAIABAAAAAEAAAAWoAMABAAAAAEAAAAWAAAAABwhM1oAAAHJaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+CiAgIDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+CiAgICAgIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAgICAgICAgICAgIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj4KICAgICAgICAgPGV4aWY6Q29sb3JTcGFjZT4xPC9leGlmOkNvbG9yU3BhY2U+CiAgICAgICAgIDxleGlmOlBpeGVsWERpbWVuc2lvbj4zMjwvZXhpZjpQaXhlbFhEaW1lbnNpb24+CiAgICAgICAgIDxleGlmOlBpeGVsWURpbWVuc2lvbj4zMjwvZXhpZjpQaXhlbFlEaW1lbnNpb24+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgqWsr5jAAAB90lEQVQ4EaVUzU7CQBCebetJE6sxRk/G6EGRA4niVV5AifJYylnp2Z+EB4AErvoM1ugzSEQhIZau3+y22y3WC06a7fx9387MbivI80gSCcpkxswCVJBJ0iVHkBAcm1OEx8C58ap2Z869NUzt/T8KRaQaQT2ml+mUDUzHcWcLjKckkSfIzYUwTodkeh4y3trerlQq49F4PBoxkREZr62vV4+PMf6PwSALcQoOFY+rHqLzi8Z3FF01m4xFIdqvtr1sNqMoumg0OJT4FTZPIVZWVp/Dl9e3t43NzSyVCCacYRgigUvQFGr7/Dg9dzB4b7fbuzs7J7UaU6QCE06EkDAzi3wj4CaxVyoNh8NOt+vA5F5cKJ1uB06E1DjTxvUQco0ojLewcHv/MJlMDqtHuojDahXm3f0DQtaA1CDAQp6bjVN3SHRar0spr1stTXF904J5Vq+zqXPslSlsG7oQy77/+PQEWBAErSCAAtP3/WyQBpJUYWyjEJUOyr1eD2BIv98/KJeLS/A8wVWYq6Xr1us0Wlxa2tvfhxU+h6OvTy62SH5R2Jc9jknGjBIOX+JCAUHiN0jzsSDAsD+Qhk4aCu2yvgl22HRmDwNOlXQTO9sGz5CmMPttNWK7NdJeES2m4x+fwLC4ZmTgaJI8bWvWRMfpcpD/AFDVW2k/vYmisbCj7V4AAAAASUVORK5CYIIo';
+const ICON_CONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAACXBIWXMAAAAAAAAAAQCEeRdzAAACU0lEQVR4nGP89+8fAyMjIwO1AQsD9c2EGkwjgGJwa2srw6FDh4qAwcMaGhramZaWhlfzrFmzGFavXl3OxMT0287Orq+6uhq7wXv27Kk/cOBAA4j94MED+7CwMC8BAQGshn748IGhu7t72507dzxB/F8/f/IBDW7AanBISEgjzGCQhrlz5zIUFxdjNXjevHkMMEPBekNDG5DlUQxOSUlhmDZt2ppr166FgPj79+/PABo8A5vB+/bty4CxtbS01oD04jSYnZ2dITU1NbSwsPA/iP/ixQvDd+/eMQgJCaFoevf+HVgOxgfpAenFaTAIJCYmMkydOnU7yJtnz55NW7BgQXpRURGKmgXzFzCA5EBsFRWV7SA96ADDYH5+foac3Fyvgvx8sKuBBi/JzMyM4eTkBMt///4dLAZTn5OT4wXSQ9BgsKsTEhimTJ4MdvXly5ejly9fHpOUlASWA7IZQGL4XIvTYD4+Pobs7GwvWFhPmDBhSXx8fAyIPXHixMUwdVlZWV4gtUQbDALc3Fxw9tevX8X+//8PZX8RQ6jhxqUdt8FBQcFA101aefXq1fB79+657tixHSx+9+49NxCtra29Mjg4mHSDhYWFGYDhGgFMx+EgfkVF5QpkeZAcSA3JBoNAdHQ0KEyPPHr0yAbkcpi4nJzckejoKHxa8RssLi7OkJ6RbltdVf0fWTw9Pd1WXFyCfINBICU5hWH6tOknnjx5YgHiy8jInEDPvmQZLCYmxlBSUmK5devWEhDf29u7ByRGscEgkJ+fD8I9xKglyWByAM0MBgBZuuSA+pPyqwAAAABJRU5ErkJggg==';
+const ICON_DISCONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAACXBIWXMAAAAAAAAAAQCEeRdzAAACU0lEQVR4nGP89+8fAyMjIwO1AQsD9c2EGkwjgGJwa2srw6FDh4qAwcMaGhramZaWhlfzrFmzGFavXl3OxMT0287Orq+6uhq7wXv27Kk/cOBAA4j94MED+7CwMC8BAQGshn748IGhu7t72507dzxB/F8/f/IBDW7AanBISEgjzGCQhrlz5zIUFxdjNXjevHkMMEPBekNDG5DlUQxOSUlhmDZt2ppr166FgPj79+/PABo8A5vB+/bty4CxtbS01oD04jSYnZ2dITU1NbSwsPA/iP/ixQvDd+/eMQgJCaFoevf+HVgOxgfpAenFaTAIJCYmMkydOnU7yJtnz55NW7BgQXpRURGKmgXzFzCA5EBsFRWV7SA96ADDYH5+foac3Fyvgvx8sKuBBi/JzMyM4eTkBMt///4dLAZTn5OT4wXSQ9BgsKsTEhimTJ4MdvXly5ejly9fHpOUlASWA7IZQGL4XIvTYD4+Pobs7GwvWFhPmDBhSXx8fAyIPXHixMUwdVlZWV4gtUQbDALc3Fxw9tevX8X+//8PZX8RQ6jhxqUdt8FBQcFA101aefXq1fB79+657tixHSx+9+49NxCtra29Mjg4mHSDhYWFGYDhGgFMx+EgfkVF5QpkeZAcSA3JBoNAdHQ0KEyPPHr0yAbkcpi4nJzckejoKHxa8RssLi7OkJ6RbltdVf0fWTw9Pd1WXFyCfINBICU5hWH6tOknnjx5YgHiy8jInEDPvmQZLCYmxlBSUmK5devWEhDf29u7ByRGscEgkJ+fD8I9xKglyWByAM0MBgBZuuSA+pPyqwAAAABJRU5ErkJggg==';
 
 export function setupTray(deviceId: string, stopCallback: () => void) {
     if (os.platform() === 'win32') {
@@ -19,13 +19,29 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
     const baseUrl = 'https://levitation.studio';
     const connectUrl = `${baseUrl}?instance=${deviceId}`;
 
-    const menu = {
-        icon: ICON_DISCONNECTED_BASE64,
+    // Helper to get current menu state
+    const getMenu = (connected: boolean) => ({
+        icon: connected ? ICON_CONNECTED_BASE64 : ICON_DISCONNECTED_BASE64,
         title: '',
-        tooltip: 'Levitation Client (Disconnected)',
+        tooltip: connected ? 'Levitation Client (Connected)' : 'Levitation Client (Disconnected)',
         isTemplateIcon: true,
         items: [
             {
+                id: 1,
+                title: connected ? 'Status: Connected' : 'Status: Disconnected',
+                tooltip: 'Current connection status',
+                checked: false,
+                enabled: false, // Make enabled to ensure it updates visually
+            },
+            {
+                id: 2,
+                title: (SysTray as any).separator ? (SysTray as any).separator.title : '---',
+                tooltip: '',
+                checked: false,
+                enabled: false,
+            },
+            {
+                id: 3,
                 title: 'Open Agent Manager',
                 tooltip: 'Open the management UI in your browser',
                 checked: false,
@@ -35,12 +51,14 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
                 }
             },
             {
+                id: 4,
                 title: (SysTray as any).separator ? (SysTray as any).separator.title : '---',
                 tooltip: '',
                 checked: false,
                 enabled: false,
             },
             {
+                id: 5,
                 title: 'Stop Client',
                 tooltip: 'Stop the background process',
                 checked: false,
@@ -50,11 +68,11 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
                 }
             }
         ]
-    };
+    });
 
     let systray: any;
     let isReady = false;
-    let lastConnectedStatus: boolean | null = null;
+    let currentConnectedStatus: boolean = false;
 
     try {
         if (os.platform() === 'darwin') {
@@ -67,11 +85,13 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
             } catch (e) { /* ignore */ }
         }
 
+        const menu = getMenu(false);
         systray = new (SysTray as any)({
-            menu: menu,
+            menu,
             debug: false,
             copyDir: false,
         });
+        (systray as any).menu = menu;
 
         const readyPromise = typeof (systray as any).ready === 'function' ? (systray as any).ready() : (systray as any)._ready;
 
@@ -79,11 +99,7 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
             readyPromise.then(() => {
                 isReady = true;
                 console.log('\x1b[32m[Tray] System tray is ready\x1b[0m');
-
-                // If we got a status update before we were ready, apply it now
-                if (lastConnectedStatus !== null) {
-                    applyStatus(lastConnectedStatus);
-                }
+                applyStatus(currentConnectedStatus, true);
 
                 if (systray?._process) {
                     systray._process.on('error', (err: any) => {
@@ -101,8 +117,10 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
 
                 systray.onClick((action: any) => {
                     try {
-                        if (action.item.click) {
-                            action.item.click();
+                        const menu = getMenu(currentConnectedStatus);
+                        const item = menu.items.find((i: any) => i.id === action.item.id || (i.title === action.item.title));
+                        if (item && (item as any).click) {
+                            (item as any).click();
                         }
                     } catch (e) {
                         console.error('[Tray] Click error:', e);
@@ -117,27 +135,29 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
         return null;
     }
 
-    function applyStatus(connected: boolean) {
-        if (!systray || !systray._process || !isReady) return;
+    function applyStatus(connected: boolean, force: boolean = false) {
+        if (!systray || !isReady) return;
 
-        // Note: Currently both icons are the same, but we update the tooltip
-        menu.icon = connected ? ICON_CONNECTED_BASE64 : ICON_DISCONNECTED_BASE64;
-        menu.title = '';
-        menu.tooltip = connected ? 'Levitation Client (Connected)' : 'Levitation Client (Disconnected)';
-        (menu as any).isTemplateIcon = true;
+        const item = systray.menu.items[0];
+        item.title = connected ? 'Status: Connected' : 'Status: Disconnected';
 
         try {
             systray.sendAction({
-                type: 'update-menu',
-                menu: menu
+                type: 'update-item',
+                item,
             });
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error('[Tray] Failed to send update-menu action:', e);
+        }
     }
 
     return {
         updateStatus: (connected: boolean) => {
-            lastConnectedStatus = connected;
+            currentConnectedStatus = connected;
             applyStatus(connected);
+        },
+        refreshStatus: () => {
+            applyStatus(currentConnectedStatus, true);
         },
         kill: () => {
             if (systray) systray.kill();

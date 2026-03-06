@@ -5,6 +5,8 @@
 
 **Levitation** is an unofficial management suite for Google Antigravity agents. It provides a powerful CLI and a beautiful web-based dashboard to monitor, manage, and interact with your agent workspaces across different environments.
 
+🚀 **Try it now**: Levitation is deployed as a free service at [https://levitation.studio](https://levitation.studio)
+
 ![Levitation Banner](https://raw.githubusercontent.com/ggarber/levitation/main/web/public/diagram.png) *(Placeholder for project banner)*
 
 ## 🌟 Features
@@ -19,7 +21,7 @@
 
 ## 🏗️ Project Structure
 
--   `web/`: Next.js web application (Dashboard).
+-   `web/`: Web Agent Manager (PWA).
 -   `client/`: TypeScript CLI tool that runs on agent machines.
 -   `server/`: Node.js WebSocket relay server.
 -   `mobile/`: (WIP) React Native mobile application.
@@ -49,6 +51,7 @@ pnpm install
 cd server
 pnpm dev
 ```
+The websocket server will be available at `ws://localhost:9999` (or the configured port).
 The dashboard will be available at `http://localhost:10000` (or the configured port).
 
 #### 2. Start a Client
@@ -66,7 +69,7 @@ cd web
 pnpm dev
 ```
 
-## � Mobile PWA
+## 📱 Mobile PWA
 
 While the dedicated mobile app (`mobile/`) is under construction, Levitation is fully optimized as a **Progressive Web App (PWA)**.
 
