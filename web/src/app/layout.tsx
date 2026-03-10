@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Levitation Web",
+  title: "Levitation Agent Manager",
   description: "Advanced workspace and session management interface.",
   manifest: "/manifest.json",
   icons: {

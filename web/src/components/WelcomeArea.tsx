@@ -127,11 +127,11 @@ export function WelcomeArea() {
                         <img src="/icons/icon-192x192.png" alt="Levitation Logo" className="w-10 h-10 object-contain" />
                     </div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter sm:text-5xl leading-tight">
-                        Levitation <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Control Center</span>
+                        Levitation <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Agent Manager</span>
                     </h2>
                     <p className="text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em] flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4" />
-                        UNOFFICIAL MOBILE MANAGER FOR GOOGLE ANTIGRAVITY
+                        UNOFFICIAL AGENT MANAGER FOR GOOGLE ANTIGRAVITY
                     </p>
                     <p className="text-lg font-medium text-slate-600 dark:text-slate-400 leading-relaxed pr-0 sm:pr-12">
                         Monitor and interact with your Antigravity agents from your phone while you are away from the computer, ensuring your work never stops.
