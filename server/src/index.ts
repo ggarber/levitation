@@ -53,8 +53,23 @@ interface ConnectionStats {
     messagesReceived: number;
     messagesSent: number;
     version?: string;
+    disconnectedAt?: Date;
 }
 const connectionStats = new Map<WebSocket, ConnectionStats>();
+const historicalStats = new Map<string, ConnectionStats>();
+
+// Cleanup old historical stats every hour
+setInterval(() => {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [key, stats] of historicalStats.entries()) {
+        const lastActive = stats.disconnectedAt ? stats.disconnectedAt.getTime() : stats.connectedAt.getTime();
+        // If disconnected more than 24h ago, or connected more than 24h ago and still no disconnect but we want to keep it?
+        // Let's say if it hasn't been seen active in 24h.
+        if (lastActive < oneDayAgo && stats.disconnectedAt) {
+            historicalStats.delete(key);
+        }
+    }
+}, 3600000);
 
 // Store request ID mappings: requestId -> { managerWs, timeoutId }
 const requestMappings = new Map<string, { managerWs: WebSocket, timeoutId: NodeJS.Timeout }>();
@@ -73,6 +88,8 @@ app.get('/stats', (req, res) => {
             tr:nth-child(even) { background-color: #f9f9f9; }
             .mode-client { color: #d9480f; font-weight: bold; }
             .mode-manager { color: #0070f3; font-weight: bold; }
+            .status-connected { color: #2f9e44; font-weight: bold; }
+            .status-disconnected { color: #e03131; font-weight: bold; }
         </style>
         <meta http-equiv="refresh" content="5">
     </head>
@@ -81,11 +98,12 @@ app.get('/stats', (req, res) => {
         <table>
             <thead>
                 <tr>
+                    <th>Status</th>
                     <th>Mode</th>
                     <th>Instance ID</th>
                     <th>IP Address</th>
                     <th>Connected At</th>
-                    <th>Uptime</th>
+                    <th>Uptime / Last Seen</th>
                     <th>Recv</th>
                     <th>Sent</th>
                 </tr>
@@ -94,9 +112,19 @@ app.get('/stats', (req, res) => {
     `;
 
     const now = new Date();
-    connectionStats.forEach((stats) => {
-        const uptime = Math.floor((now.getTime() - stats.connectedAt.getTime()) / 1000);
-        const formatUptime = (s: number) => {
+    const sortedStats = Array.from(historicalStats.values()).sort((a, b) => {
+        const aConnected = !a.disconnectedAt;
+        const bConnected = !b.disconnectedAt;
+        if (aConnected && !bConnected) return -1;
+        if (!aConnected && bConnected) return 1;
+        return b.connectedAt.getTime() - a.connectedAt.getTime();
+    });
+
+    sortedStats.forEach((stats) => {
+        const isConnected = !stats.disconnectedAt;
+        const endTime = isConnected ? now : stats.disconnectedAt!;
+        const uptime = Math.floor((endTime.getTime() - stats.connectedAt.getTime()) / 1000);
+        const formatDuration = (s: number) => {
             const h = Math.floor(s / 3600);
             const m = Math.floor((s % 3600) / 60);
             const sec = s % 60;
@@ -105,25 +133,26 @@ app.get('/stats', (req, res) => {
 
         html += `
             <tr>
+                <td class="status-${isConnected ? 'connected' : 'disconnected'}">${isConnected ? 'CONNECTED' : 'DISCONNECTED'}</td>
                 <td class="mode-${stats.mode}">${stats.mode.toUpperCase()}</td>
                 <td><code>${stats.instanceId}</code></td>
                 <td>${stats.ip}</td>
-                <td>${stats.connectedAt.toLocaleString()}</td>
-                <td>${formatUptime(uptime)}</td>
+                <td>${stats.connectedAt.toLocaleString()} ${!isConnected ? `<br/><small>Ended: ${stats.disconnectedAt!.toLocaleString()}</small>` : ''}</td>
+                <td>${formatDuration(uptime)}</td>
                 <td>${stats.messagesReceived}</td>
                 <td>${stats.messagesSent}</td>
             </tr>
         `;
     });
 
-    if (connectionStats.size === 0) {
-        html += `<tr><td colspan="7" style="text-align: center; color: #666;">No active connections</td></tr>`;
+    if (historicalStats.size === 0) {
+        html += `<tr><td colspan="8" style="text-align: center; color: #666;">No connection history in the last 24h</td></tr>`;
     }
 
     html += `
             </tbody>
         </table>
-        <p style="margin-top: 20px; color: #666; font-size: 12px;">Auto-refreshing every 5 seconds</p>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">Auto-refreshing every 5 seconds. Retaining history for 24 hours.</p>
     </body>
     </html>
     `;
@@ -205,6 +234,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         version
     };
     connectionStats.set(ws, stats);
+    historicalStats.set(`${mode}:${instanceId}`, stats);
 
     // Wrap send to log outgoing messages and track stats
     const originalSend = ws.send.bind(ws);
@@ -358,6 +388,10 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 
     ws.on('close', () => {
         console.log(`\x1b[33m[WS]\x1b[0m Connection closed: mode=${mode}, instanceId=${instanceId}`);
+        const stats = connectionStats.get(ws);
+        if (stats) {
+            stats.disconnectedAt = new Date();
+        }
         connectionStats.delete(ws);
         if (mode === 'client') {
             if (clients.get(instanceId) === ws) {
