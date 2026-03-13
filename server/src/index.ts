@@ -6,10 +6,20 @@ import { IncomingMessage, createServer as createHttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { Duplex } from 'stream';
 import fs from 'fs';
-import zlib from 'zlib';
+import { Reader } from '@maxmind/geoip2-node';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let geoipReader: any = null;
+Reader.open(path.join(__dirname, '../data/GeoLite2-Country.mmdb'))
+    .then(reader => {
+        geoipReader = reader;
+        console.log(`\x1b[32m[GeoIP]\x1b[0m Database loaded`);
+    })
+    .catch(err => {
+        console.error(`\x1b[31m[GeoIP]\x1b[0m Failed to load database: ${err.message}`);
+    });
 
 const WEB_PORT = parseInt(process.env.WEB_PORT || '10000');
 const WS_PORT = parseInt(process.env.WS_PORT || '9999');
@@ -75,6 +85,8 @@ setInterval(() => {
 const requestMappings = new Map<string, { managerWs: WebSocket, timeoutId: NodeJS.Timeout }>();
 
 app.get('/stats', (req, res) => {
+    const showGeoip = req.query.geoip !== undefined;
+
     let html = `
     <html>
     <head>
@@ -102,6 +114,7 @@ app.get('/stats', (req, res) => {
                     <th>Mode</th>
                     <th>Instance ID</th>
                     <th>IP Address</th>
+                    ${showGeoip ? '<th>Country</th>' : ''}
                     <th>Connected At</th>
                     <th>Uptime / Last Seen</th>
                     <th>Recv</th>
@@ -131,12 +144,34 @@ app.get('/stats', (req, res) => {
             return `${h}h ${m}m ${sec}s`;
         };
 
+        let country = '';
+        if (showGeoip) {
+            country = 'Unknown';
+            if (geoipReader && stats.ip) {
+                let ipToLookup = stats.ip;
+                if (ipToLookup === '::1' || ipToLookup === '127.0.0.1') {
+                    country = 'Localhost';
+                } else {
+                    if (ipToLookup.startsWith('::ffff:')) {
+                        ipToLookup = ipToLookup.substring(7);
+                    }
+                    try {
+                        const response = geoipReader.country(ipToLookup);
+                        country = response.country?.isoCode || 'Unknown';
+                    } catch (err) {
+                        country = 'Not Found';
+                    }
+                }
+            }
+        }
+
         html += `
             <tr>
                 <td class="status-${isConnected ? 'connected' : 'disconnected'}">${isConnected ? 'CONNECTED' : 'DISCONNECTED'}</td>
                 <td class="mode-${stats.mode}">${stats.mode.toUpperCase()}</td>
                 <td><code>${stats.instanceId}</code></td>
                 <td>${stats.ip}</td>
+                ${showGeoip ? `<td>${country}</td>` : ''}
                 <td>${stats.connectedAt.toLocaleString()} ${!isConnected ? `<br/><small>Ended: ${stats.disconnectedAt!.toLocaleString()}</small>` : ''}</td>
                 <td>${formatDuration(uptime)}</td>
                 <td>${stats.messagesReceived}</td>
@@ -146,7 +181,7 @@ app.get('/stats', (req, res) => {
     });
 
     if (historicalStats.size === 0) {
-        html += `<tr><td colspan="8" style="text-align: center; color: #666;">No connection history in the last 24h</td></tr>`;
+        html += `<tr><td colspan="${showGeoip ? '9' : '8'}" style="text-align: center; color: #666;">No connection history in the last 24h</td></tr>`;
     }
 
     html += `
