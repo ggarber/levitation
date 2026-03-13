@@ -11,6 +11,14 @@ export function Footer() {
                 <Link href="/privacy" className="hover:text-blue-500 transition-colors">
                     Privacy Policy
                 </Link>
+                <a 
+                    href="https://github.com/ggarber/levitation/issues" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="hover:text-blue-500 transition-colors"
+                >
+                    Report Issues
+                </a>
             </div>
 
             <div className="text-center sm:text-right">
