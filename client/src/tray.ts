@@ -10,7 +10,13 @@ const require = createRequire(import.meta.url);
 const ICON_CONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAACXBIWXMAAAAAAAAAAQCEeRdzAAACU0lEQVR4nGP89+8fAyMjIwO1AQsD9c2EGkwjgGJwa2srw6FDh4qAwcMaGhramZaWhlfzrFmzGFavXl3OxMT0287Orq+6uhq7wXv27Kk/cOBAA4j94MED+7CwMC8BAQGshn748IGhu7t72507dzxB/F8/f/IBDW7AanBISEgjzGCQhrlz5zIUFxdjNXjevHkMMEPBekNDG5DlUQxOSUlhmDZt2ppr166FgPj79+/PABo8A5vB+/bty4CxtbS01oD04jSYnZ2dITU1NbSwsPA/iP/ixQvDd+/eMQgJCaFoevf+HVgOxgfpAenFaTAIJCYmMkydOnU7yJtnz55NW7BgQXpRURGKmgXzFzCA5EBsFRWV7SA96ADDYH5+foac3Fyvgvx8sKuBBi/JzMyM4eTkBMt///4dLAZTn5OT4wXSQ9BgsKsTEhimTJ4MdvXly5ejly9fHpOUlASWA7IZQGL4XIvTYD4+Pobs7GwvWFhPmDBhSXx8fAyIPXHixMUwdVlZWV4gtUQbDALc3Fxw9tevX8X+//8PZX8RQ6jhxqUdt8FBQcFA101aefXq1fB79+657tixHSx+9+49NxCtra29Mjg4mHSDhYWFGYDhGgFMx+EgfkVF5QpkeZAcSA3JBoNAdHQ0KEyPPHr0yAbkcpi4nJzckejoKHxa8RssLi7OkJ6RbltdVf0fWTw9Pd1WXFyCfINBICU5hWH6tOknnjx5YgHiy8jInEDPvmQZLCYmxlBSUmK5devWEhDf29u7ByRGscEgkJ+fD8I9xKglyWByAM0MBgBZuuSA+pPyqwAAAABJRU5ErkJggg==';
 const ICON_DISCONNECTED_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAACXBIWXMAAAAAAAAAAQCEeRdzAAACU0lEQVR4nGP89+8fAyMjIwO1AQsD9c2EGkwjgGJwa2srw6FDh4qAwcMaGhramZaWhlfzrFmzGFavXl3OxMT0287Orq+6uhq7wXv27Kk/cOBAA4j94MED+7CwMC8BAQGshn748IGhu7t72507dzxB/F8/f/IBDW7AanBISEgjzGCQhrlz5zIUFxdjNXjevHkMMEPBekNDG5DlUQxOSUlhmDZt2ppr166FgPj79+/PABo8A5vB+/bty4CxtbS01oD04jSYnZ2dITU1NbSwsPA/iP/ixQvDd+/eMQgJCaFoevf+HVgOxgfpAenFaTAIJCYmMkydOnU7yJtnz55NW7BgQXpRURGKmgXzFzCA5EBsFRWV7SA96ADDYH5+foac3Fyvgvx8sKuBBi/JzMyM4eTkBMt///4dLAZTn5OT4wXSQ9BgsKsTEhimTJ4MdvXly5ejly9fHpOUlASWA7IZQGL4XIvTYD4+Pobs7GwvWFhPmDBhSXx8fAyIPXHixMUwdVlZWV4gtUQbDALc3Fxw9tevX8X+//8PZX8RQ6jhxqUdt8FBQcFA101aefXq1fB79+657tixHSx+9+49NxCtra29Mjg4mHSDhYWFGYDhGgFMx+EgfkVF5QpkeZAcSA3JBoNAdHQ0KEyPPHr0yAbkcpi4nJzckejoKHxa8RssLi7OkJ6RbltdVf0fWTw9Pd1WXFyCfINBICU5hWH6tOknnjx5YgHiy8jInEDPvmQZLCYmxlBSUmK5devWEhDf29u7ByRGscEgkJ+fD8I9xKglyWByAM0MBgBZuuSA+pPyqwAAAABJRU5ErkJggg==';
 
-export function setupTray(deviceId: string, stopCallback: () => void) {
+export type TrayCallbacks = {
+    onQuit: () => void;
+    onConnect: () => void;
+    onDisconnect: () => void;
+};
+
+export function setupTray(deviceId: string, callbacks: TrayCallbacks) {
     if (os.platform() === 'win32') {
         console.log('\x1b[33mWarning:\x1b[0m System tray is not supported on Windows. Skipping.');
         return null;
@@ -59,12 +65,33 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
             },
             {
                 id: 5,
-                title: 'Stop Client',
+                title: connected ? 'Disconnect' : 'Connect',
+                tooltip: connected ? 'Disconnect from server' : 'Connect to server',
+                checked: false,
+                enabled: true,
+                click: () => {
+                    if (connected) {
+                        callbacks.onDisconnect();
+                    } else {
+                        callbacks.onConnect();
+                    }
+                }
+            },
+            {
+                id: 6,
+                title: (SysTray as any).separator ? (SysTray as any).separator.title : '---',
+                tooltip: '',
+                checked: false,
+                enabled: false,
+            },
+            {
+                id: 7,
+                title: 'Quit',
                 tooltip: 'Stop the background process',
                 checked: false,
                 enabled: true,
                 click: () => {
-                    stopCallback();
+                    callbacks.onQuit();
                 }
             }
         ]
@@ -138,18 +165,41 @@ export function setupTray(deviceId: string, stopCallback: () => void) {
     function applyStatus(connected: boolean, force: boolean = false) {
         if (!systray || !isReady) return;
 
-        const item = systray.menu.items[0];
-        item.title = connected ? 'Status: Connected' : 'Status: Disconnected';
+        // Update Status item
+        const statusItem = systray.menu.items[0];
+        statusItem.title = connected ? 'Status: Connected' : 'Status: Disconnected';
+
+        // Update Connect/Disconnect item
+        const actionItem = systray.menu.items[4];
+        actionItem.title = connected ? 'Disconnect' : 'Connect';
+        actionItem.tooltip = connected ? 'Disconnect from server' : 'Connect to server';
 
         try {
+            // Update items
             systray.sendAction({
                 type: 'update-item',
-                item,
+                item: statusItem,
+            });
+            systray.sendAction({
+                type: 'update-item',
+                item: actionItem,
+            });
+
+            // Update main tray icon and tooltip if possible
+            // Note: some systray versions might require update-menu or have different actions
+            systray.sendAction({
+                type: 'update-menu',
+                menu: {
+                    icon: connected ? ICON_CONNECTED_BASE64 : ICON_DISCONNECTED_BASE64,
+                    tooltip: connected ? 'Levitation Client (Connected)' : 'Levitation Client (Disconnected)',
+                    items: systray.menu.items,
+                }
             });
         } catch (e) {
             console.error('[Tray] Failed to send update-menu action:', e);
         }
     }
+
 
     return {
         updateStatus: (connected: boolean) => {

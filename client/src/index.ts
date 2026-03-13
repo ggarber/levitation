@@ -651,6 +651,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
 
     let activeWs: WebSocket | null = null;
     let isConnected = false;
+    let isManuallyPaused = false;
 
     // Start IPC Server
     if (fs.existsSync(IPC_SOCKET)) {
@@ -679,13 +680,29 @@ async function connectWebSocket(url: string, verbose: boolean) {
     });
 
     // Setup System Tray immediately so it shows even if not connected
-    const tray = setupTray(deviceId, () => {
-        if (activeWs) {
-            activeWs.close();
+    const tray = setupTray(deviceId, {
+        onQuit: () => {
+            if (activeWs) {
+                activeWs.close();
+            }
+            clearInterval(traySyncInterval);
+            ipcServer.close();
+            process.exit(0);
+        },
+        onConnect: () => {
+            isManuallyPaused = false;
+            if (!isConnected) {
+                connect();
+            }
+        },
+        onDisconnect: () => {
+            isManuallyPaused = true;
+            if (activeWs) {
+                activeWs.close();
+            }
+            isConnected = false;
+            tray?.updateStatus(false);
         }
-        clearInterval(traySyncInterval);
-        ipcServer.close();
-        process.exit(0);
     });
 
     // Periodic tray sync (every 5 seconds)
@@ -710,7 +727,7 @@ async function connectWebSocket(url: string, verbose: boolean) {
     process.once('SIGINT', () => cleanup('SIGINT'));
 
     function connect() {
-        if (!shouldRetry) return;
+        if (!shouldRetry || isManuallyPaused) return;
 
         console.log(`Connecting to WebSocket at ${wsUrl.toString()}...`);
         const ws = new WebSocket(wsUrl.toString(), {
@@ -814,13 +831,15 @@ async function connectWebSocket(url: string, verbose: boolean) {
                 isConnected = false;
                 tray?.updateStatus(false);
             }
-            if (shouldRetry) {
+            if (shouldRetry && !isManuallyPaused) {
                 const delay = getReconnectDelay(reconnectAttempts);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
 
                 setTimeout(() => {
-                    reconnectAttempts++;
-                    connect();
+                    if (!isManuallyPaused) {
+                        reconnectAttempts++;
+                        connect();
+                    }
                 }, delay);
             }
         });
