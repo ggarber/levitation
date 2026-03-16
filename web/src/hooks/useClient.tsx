@@ -77,6 +77,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     const cascadesByPortRef = useRef<Record<string, Cascade[]>>({});
     const lastKnownStepsRef = useRef<Record<string, { count: number, time: string }>>({});
     const workspacesRef = useRef<Workspace[]>([]);
+    const selectedCascadeIdRef = useRef<string | null>(null);
     const handleMessageRef = useRef<(msg: any) => void>(() => { });
 
     useEffect(() => {
@@ -173,16 +174,16 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                 lastKnownStepsRef.current[c.id] = { count: c.stepCount || 0, time: c.lastModifiedTime || '' };
             });
         } else if (message.type === 'StartCascadeResponse') {
-            const cascadeId = message.body?.cascadeId;
+            const startCascadeId = message.body?.cascadeId;
             const port = message.body?.port;
             const requestId = message.id;
             const pendingMessage = requestId ? pendingRequestsRef.current.get(requestId) : null;
 
-            if (cascadeId && selectedWorkspaceRef.current) {
+            if (startCascadeId && selectedWorkspaceRef.current) {
                 // Optimistically add to sidebar if we have a port
                 if (port) {
                     const newCascade = {
-                        id: cascadeId,
+                        id: startCascadeId,
                         summary: pendingMessage || 'New Cascade',
                         createdTime: new Date().toISOString(),
                         lastModifiedTime: new Date().toISOString(),
@@ -195,19 +196,19 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                         ...prev,
                         [port]: [newCascade, ...(prev[port] || [])]
                     }));
-                    lastKnownStepsRef.current[cascadeId] = {
+                    lastKnownStepsRef.current[startCascadeId] = {
                         count: newCascade.stepCount,
                         time: newCascade.lastModifiedTime
                     };
                 }
 
                 // Switch to this cascade immediately in the main area
-                getCascadeTrajectory(cascadeId, port || selectedWorkspaceRef.current.port, pendingMessage || 'New Cascade');
+                getCascadeTrajectory(startCascadeId, port || selectedWorkspaceRef.current.port, pendingMessage || 'New Cascade');
 
                 if (pendingMessage) {
                     sendCommand('SendUserCascadeMessageRequest', {
                         text: pendingMessage,
-                        cascade: cascadeId,
+                        cascade: startCascadeId,
                         port: selectedWorkspaceRef.current.port
                     });
                 }
@@ -225,10 +226,10 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     const finalPort = port || selectedWorkspaceRef.current.port;
                     if (finalPort) {
                         setActiveCascades(prev => {
-                            if (prev[cascadeId] === finalPort) return prev;
-                            return { ...prev, [cascadeId]: finalPort };
+                            if (prev[startCascadeId] === finalPort) return prev;
+                            return { ...prev, [startCascadeId]: finalPort };
                         });
-                        markCascadeAsRead(cascadeId, finalPort);
+                        markCascadeAsRead(startCascadeId, finalPort);
                     }
                 }
             } else if (requestId) {
@@ -238,32 +239,43 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         } else if (message.type === 'SendUserCascadeMessageResponse') {
             addLog('Message sent successfully');
             const port = message.body?.port;
-            const cascadeId = message.body?.cascade;
-            if (cascadeId) {
+            const responseCascadeId = message.body?.cascade;
+            if (responseCascadeId) {
                 setSendingCascadeIds(prev => {
                     const next = { ...prev };
-                    delete next[cascadeId];
+                    delete next[responseCascadeId];
                     return next;
                 });
                 if (port) {
                     setActiveCascades(prev => {
-                        if (prev[cascadeId] === port) return prev;
-                        return { ...prev, [cascadeId]: port };
+                        if (prev[responseCascadeId] === port) return prev;
+                        return { ...prev, [responseCascadeId]: port };
                     });
                     sendCommand('GetAllCascadeTrajectoriesRequest', { port });
-                    sendCommand('GetCascadeTrajectoryRequest', { cascadeId, port });
+                    // Only poll trajectory if it's the one we're currently viewing
+                    if (selectedCascadeIdRef.current === responseCascadeId) {
+                        sendCommand('GetCascadeTrajectoryRequest', { cascadeId: responseCascadeId, port });
+                    }
                 }
             }
         } else if (message.type === 'StreamCascadeReactiveUpdatesResponse') {
-            setCascadeTimeline(message.body);
-            addLog('Stream cascade reactive updates received');
+            const streamCascadeId = message.body?.trajectory?.cascadeId;
+            if (streamCascadeId && selectedCascadeIdRef.current === streamCascadeId) {
+                setCascadeTimeline(message.body);
+                addLog('Stream cascade reactive updates received');
+            }
         } else if (message.type === 'GetCascadeTrajectoryResponse') {
+            const trajectoryCascadeId = message.body?.trajectory?.cascadeId;
+            if (trajectoryCascadeId && selectedCascadeIdRef.current !== trajectoryCascadeId) {
+                addLog(`Ignoring trajectory for ${trajectoryCascadeId} as it's not the active one`);
+                return;
+            }
+
             const prevTimeline = cascadeTimeline;
             setCascadeTimeline(message.body);
             setIsLoadingTimeline(false);
             addLog('Cascade trajectory received');
             const status = message.body?.trajectory?.status;
-            const cascadeId = message.body?.trajectory?.cascadeId;
             const summary = message.body?.trajectory?.summary || 'Cascade';
 
             // Notification logic
@@ -282,21 +294,21 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
                     }
                 }
 
-                if (finalIsInactive && cascadeId) {
+                if (finalIsInactive && trajectoryCascadeId) {
                     setActiveCascades(prev => {
-                        if (!prev[cascadeId]) return prev;
+                        if (!prev[trajectoryCascadeId]) return prev;
                         const next = { ...prev };
-                        delete next[cascadeId];
+                        delete next[trajectoryCascadeId];
                         return next;
                     });
                 }
             } else {
                 // Keep polling or start polling if not already
                 const port = message.body?.port || selectedWorkspaceRef.current?.port;
-                if (port && cascadeId) {
+                if (port && trajectoryCascadeId) {
                     setActiveCascades(prev => {
-                        if (prev[cascadeId] === port) return prev;
-                        return { ...prev, [cascadeId]: port };
+                        if (prev[trajectoryCascadeId] === port) return prev;
+                        return { ...prev, [trajectoryCascadeId]: port };
                     });
                 }
             }
@@ -443,6 +455,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         setCascadesByPort({});
         setSelectedWorkspace(null);
         setCascadeTimeline(null);
+        selectedCascadeIdRef.current = null;
         setClientVersion(null);
         setIsStartingNewCascade(false);
         setSendingCascadeIds({});
@@ -478,6 +491,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     }, [sendingCascadeIds, selectedWorkspace, sendCommand]);
 
     const streamCascadeReactiveUpdates = useCallback((cascadeId: string, port: number) => {
+        selectedCascadeIdRef.current = cascadeId;
         setCascadeTimeline(null);
         return sendCommand('StreamCascadeReactiveUpdatesRequest', {
             cascadeId,
@@ -486,6 +500,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     }, [sendCommand]);
 
     const getCascadeTrajectory = useCallback((cascadeId: string, port: number, optimisticSummary?: string) => {
+        selectedCascadeIdRef.current = cascadeId;
         setCascadeTimeline((prev: any) => {
             if (prev?.trajectory?.cascadeId === cascadeId) return prev;
             if (optimisticSummary) {
@@ -509,6 +524,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     }, [sendCommand]);
 
     const clearCascadeTimeline = useCallback(() => {
+        selectedCascadeIdRef.current = null;
         setCascadeTimeline(null);
     }, []);
 
