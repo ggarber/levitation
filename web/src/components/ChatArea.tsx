@@ -121,7 +121,7 @@ export function ChatArea() {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
             handleSend();
         }
@@ -655,9 +655,7 @@ export function ChatArea() {
                             />
 
                             <div className="flex items-center justify-between mt-1 px-2 pb-1">
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">⏎</kbd> to send
-                                </div>
+                                <div />
                                 <button
                                     onClick={handleSend}
                                     disabled={!chatText.trim() && !isCurrentInProgress}
